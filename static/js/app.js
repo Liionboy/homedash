@@ -103,7 +103,7 @@ function renderDashboardServices() {
 function serviceCard(s) {
     const statusClass = s.online === true ? 'online' : s.online === false ? 'offline' : 'unknown';
     const ping = s.response_ms ? '<span class="ping">' + s.response_ms + 'ms</span>' : '';
-    return '<a class="service-card" href="' + esc(s.url) + '" target="_blank" rel="noopener">' +
+    return '<a class="service-card" href="' + esc(s.url) + '" target="_blank" rel="noopener" draggable="true" data-sid="' + s.id + '" data-cat="' + (s.category_id || '') + '">' +
         '<div class="status-dot ' + statusClass + '"></div>' +
         '<div class="icon">' + esc(s.icon || '🔗') + '</div>' +
         '<div class="name">' + esc(s.name) + '</div>' +
@@ -352,10 +352,121 @@ function connectWs() {
 
 // ─── Logout ───────────────────────────────────────────────────────
 
+// ─── Drag and Drop ────────────────────────────────────────────────
+
+let dragSrcEl = null;
+let dragCategoryId = null;
+
+function initDragAndDrop() {
+    document.querySelectorAll('.services-grid').forEach(grid => {
+        grid.querySelectorAll('.service-card').forEach(card => {
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
+            card.addEventListener('dragover', handleDragOver);
+            card.addEventListener('dragenter', handleDragEnter);
+            card.addEventListener('dragleave', handleDragLeave);
+            card.addEventListener('drop', handleDrop);
+        });
+    });
+}
+
+function handleDragStart(e) {
+    dragSrcEl = this;
+    dragCategoryId = this.dataset.cat;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', this.dataset.sid);
+    // Prevent link navigation while dragging
+    e.preventDefault();
+}
+
+function handleDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.service-card').forEach(c => c.classList.remove('drag-over'));
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    if (this !== dragSrcEl) this.classList.add('drag-over');
+}
+
+function handleDragLeave() {
+    this.classList.remove('drag-over');
+}
+
+async function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.classList.remove('drag-over');
+
+    if (dragSrcEl === this) return;
+
+    const srcId = parseInt(dragSrcEl.dataset.sid);
+    const targetId = parseInt(this.dataset.sid);
+    const targetCat = this.dataset.cat;
+
+    // Get parent grid to find all cards in order
+    const grid = this.closest('.services-grid');
+    const cards = [...grid.querySelectorAll('.service-card')];
+
+    // Reorder in cache
+    const srcIdx = servicesCache.findIndex(s => s.id === srcId);
+    const targetIdx = servicesCache.findIndex(s => s.id === targetId);
+    if (srcIdx < 0 || targetIdx < 0) return;
+
+    // Move in array
+    const [moved] = servicesCache.splice(srcIdx, 1);
+    const newTargetIdx = servicesCache.findIndex(s => s.id === targetId);
+    servicesCache.splice(newTargetIdx, 0, moved);
+
+    // Update category if dropped in different grid
+    if (targetCat && targetCat !== dragCategoryId) {
+        moved.category_id = parseInt(targetCat) || null;
+    }
+
+    // Build order payload for the category
+    const catId = parseInt(targetCat) || null;
+    const orderPayload = [];
+    let sort = 0;
+    servicesCache.filter(s => (s.category_id || null) === catId).forEach(s => {
+        orderPayload.push({ id: s.id, sort_order: sort++, category_id: catId });
+    });
+
+    // Send to API
+    await api('/api/services/reorder', { method: 'PUT', body: JSON.stringify({ order: orderPayload }) });
+
+    // Re-render
+    renderDashboard();
+    renderServicesManager();
+}
+
+// Initialize drag after each render
+const origRenderDashboard = renderDashboardServices;
+// Patch: call initDragAndDrop after rendering
+const _origRender = renderDashboard;
+renderDashboard = function() {
+    _origRender();
+    setTimeout(initDragAndDrop, 50);
+};
+
 function logout() {
     localStorage.removeItem('homedash_token');
     location.href = '/login';
 }
+
+// Prevent link click during drag
+document.addEventListener('click', (e) => {
+    const card = e.target.closest('.service-card');
+    if (card && card.classList.contains('dragging')) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+}, true);
 
 // ─── Modal overlay close on background click ──────────────────────
 
