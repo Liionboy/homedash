@@ -1,0 +1,13 @@
+[Unit]
+Description=Homedash Dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adrian/.openclaw/workspace/homedash
+ExecStart=/usr/bin/python3 server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

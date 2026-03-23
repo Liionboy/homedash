@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Homedash</title>
+<link rel="icon" href="/static/favicon.svg">
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1>🏠 Homedash</h1>
+  <div class="header-actions">
+    <div class="conn-dot" id="ws-dot" title="Disconnected"></div>
+    <button class="header-btn" onclick="openDiscoverModal()">🔍 Discover</button>
+    <button class="header-btn" onclick="openWidgetModal()">➕ Widget</button>
+    <button class="header-btn" onclick="openServiceModal()">➕ Service</button>
+    <button class="header-btn" onclick="logout()">🚪 Logout</button>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
+  <button class="tab-btn" data-tab="services" onclick="switchTab('services')">🔗 Services</button>
+  <button class="tab-btn" data-tab="widgets" onclick="switchTab('widgets')">🧩 Widgets</button>
+</nav>
+
+<!-- Dashboard Tab -->
+<main class="main" id="tab-dashboard">
+  <div id="widgets-area" class="widgets-grid"></div>
+  <div id="dashboard-services"></div>
+</main>
+
+<!-- Services Tab -->
+<main class="main hidden" id="tab-services">
+  <div id="services-manager"></div>
+</main>
+
+<!-- Widgets Tab -->
+<main class="main hidden" id="tab-widgets">
+  <div id="widgets-manager"></div>
+</main>
+
+<!-- Add/Edit Service Modal -->
+<div class="modal-overlay" id="service-modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h2 id="svc-modal-title">Add Service</h2><button class="modal-close" onclick="closeServiceModal()">&times;</button></div>
+    <form class="modal-body form-grid" id="service-form">
+      <input type="hidden" id="svc-id" />
+      <label><span>Name</span><input id="svc-name" required /></label>
+      <label><span>URL</span><input id="svc-url" type="url" required placeholder="https://..." /></label>
+      <label><span>Icon (emoji or URL)</span><input id="svc-icon" placeholder="🔗" /></label>
+      <label><span>Description</span><input id="svc-desc" placeholder="Optional" /></label>
+      <label><span>Category</span><select id="svc-category"><option value="">— None —</option></select></label>
+      <label><span>Ping URL (optional)</span><input id="svc-ping" placeholder="https://service/api/health" /></label>
+      <label class="checkbox-row"><input id="svc-fav" type="checkbox" /> <span>Favorite (pin to top)</span></label>
+      <div class="form-actions">
+        <button type="submit" class="primary-btn">Save</button>
+        <button type="button" class="secondary-btn" onclick="closeServiceModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Widget Modal -->
+<div class="modal-overlay" id="widget-modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h2>Add Widget</h2><button class="modal-close" onclick="closeWidgetModal()">&times;</button></div>
+    <div class="modal-body form-grid">
+      <label><span>Widget Type</span>
+        <select id="w-type" onchange="showWidgetConfig()">
+          <option value="weather">🌤️ Weather</option>
+          <option value="system">💻 System Info</option>
+          <option value="docker">🐳 Docker Containers</option>
+          <option value="clock">🕐 Clock</option>
+        </select>
+      </label>
+      <div id="w-config-weather">
+        <label><span>City</span><input id="w-city" value="Bucharest" /></label>
+      </div>
+      <div id="w-config-clock" class="hidden">
+        <label><span>Timezone</span><input id="w-tz" value="Europe/Bucharest" /></label>
+      </div>
+      <div class="form-actions">
+        <button class="primary-btn" onclick="saveWidget()">Add Widget</button>
+        <button class="secondary-btn" onclick="closeWidgetModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Discover Modal -->
+<div class="modal-overlay" id="discover-modal-overlay">
+  <div class="modal">
+    <div class="modal-header"><h2>🔍 Auto-Discover Services</h2><button class="modal-close" onclick="closeDiscoverModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-actions" style="margin-bottom:14px">
+        <button class="primary-btn" onclick="runDockerDiscover()">🐳 Scan Docker</button>
+        <button class="secondary-btn" onclick="runNetworkDiscover()">🌐 Scan Network</button>
+      </div>
+      <div id="discover-results" class="discover-grid">
+        <div class="empty">Click a scan button to discover services.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
