@@ -5,6 +5,8 @@ let token = localStorage.getItem('homedash_token') || '';
 let servicesCache = [];
 let categoriesCache = [];
 let widgetsCache = [];
+let integrationsCache = [];
+let integrationTypesCache = {};
 let ws = null;
 
 const SEARCH_ENGINES = [
@@ -46,7 +48,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const auth = await api('/api/check-auth');
   if (!auth || !auth.ok) { location.href = '/login'; return; }
 
-  await Promise.all([loadCategories(), loadServices(), loadWidgets()]);
+  await Promise.all([loadCategories(), loadServices(), loadWidgets(), loadIntegrationTypes()]);
+  await loadIntegrations();
   connectWs();
   renderDashboard();
   startClock();
@@ -246,6 +249,11 @@ function serviceCard(s) {
   const ping = s.response_ms
     ? '<div class="card-ping"><span>' + s.response_ms + 'ms</span></div>'
     : '';
+  const intg = getServiceIntegration(s.id);
+  const intBadge = intg
+    ? '<span class="integration-badge">' + (integrationTypesCache[intg.type]?.icon || '🔗') + ' ' + (integrationTypesCache[intg.type]?.name || intg.type) + '</span>'
+    : '';
+  const intBtn = '<button class="integration-config-btn" onclick="event.preventDefault();event.stopPropagation();openDetailModal(' + s.id + ')" title="Details">' + (intg ? '📊' : '🔗') + '</button>';
 
   return '<a class="service-card" href="' + esc(s.url) + '" target="_blank" rel="noopener"' +
     ' draggable="true" data-sid="' + s.id + '" data-cat="' + (s.category_id || '') + '">' +
@@ -254,7 +262,7 @@ function serviceCard(s) {
     '<div class="card-info">' +
     '<div class="card-name">' + esc(s.name) + '</div>' +
     (s.description ? '<div class="card-desc">' + esc(s.description) + '</div>' : '') +
-    ping + '</div></a>';
+    ping + intBadge + '</div>' + intBtn + '</a>';
 }
 
 // ─── Widgets ──────────────────────────────────────────────────────
@@ -262,6 +270,205 @@ function serviceCard(s) {
 async function loadWidgets() {
   const res = await api('/api/widgets');
   if (res) widgetsCache = await res.json();
+}
+
+// ─── Integrations ─────────────────────────────────────────────────
+
+async function loadIntegrationTypes() {
+  const res = await api('/api/integrations/types');
+  if (res) integrationTypesCache = await res.json();
+}
+
+async function loadIntegrations() {
+  const res = await api('/api/integrations');
+  if (res) integrationsCache = await res.json();
+}
+
+function getServiceIntegration(serviceId) {
+  return integrationsCache.find(i => i.service_id === serviceId);
+}
+
+function openIntegrationModal(serviceId) {
+  const svc = servicesCache.find(s => s.id === serviceId);
+  if (!svc) return;
+  document.getElementById('int-service-id').value = serviceId;
+  document.getElementById('int-modal-title').textContent = '🔗 ' + svc.name + ' — Integration';
+
+  // Fill type select
+  const sel = document.getElementById('int-type');
+  sel.innerHTML = '<option value="">— Select type —</option>' +
+    Object.entries(integrationTypesCache).map(([k, v]) =>
+      '<option value="' + k + '">' + v.icon + ' ' + v.name + '</option>'
+    ).join('');
+
+  // Load existing integration
+  const existing = getServiceIntegration(serviceId);
+  if (existing) {
+    sel.value = existing.type;
+    showIntegrationFields();
+    // Pre-fill credential field names (we can't show actual values)
+  }
+
+  document.getElementById('integration-modal-overlay').classList.add('active');
+}
+
+function closeIntegrationModal() {
+  document.getElementById('integration-modal-overlay').classList.remove('active');
+}
+
+function showIntegrationFields() {
+  const type = document.getElementById('int-type').value;
+  const el = document.getElementById('int-fields');
+  if (!type || !integrationTypesCache[type]) {
+    el.innerHTML = '';
+    return;
+  }
+  const intType = integrationTypesCache[type];
+  let html = '';
+  for (const [field, info] of Object.entries(intType.fields)) {
+    const fieldType = info.type === 'password' ? 'password' : 'text';
+    html += '<label><span>' + info.label + (info.required ? ' *' : '') + '</span>' +
+      '<input id="int-field-' + field + '" type="' + fieldType + '" placeholder="' + (info.required ? 'Required' : 'Optional') + '"></label>';
+  }
+  // Site field for UniFi
+  if (type === 'unifi') {
+    html += '<label><span>Site ID</span><input id="int-field-site" value="default" placeholder="default"></label>';
+  }
+  el.innerHTML = html;
+}
+
+async function saveIntegration() {
+  const serviceId = parseInt(document.getElementById('int-service-id').value);
+  const type = document.getElementById('int-type').value;
+  if (!type) return alert('Select an integration type.');
+
+  const intType = integrationTypesCache[type];
+  const credentials = {};
+  for (const field of Object.keys(intType.fields)) {
+    const el = document.getElementById('int-field-' + field);
+    if (el) credentials[field] = el.value;
+  }
+  // Site for UniFi
+  const siteEl = document.getElementById('int-field-site');
+  const config = siteEl ? { site: siteEl.value || 'default' } : {};
+
+  const authType = intType.auth_type;
+  const res = await api('/api/integrations', {
+    method: 'POST',
+    body: JSON.stringify({ service_id: serviceId, type, auth_type: authType, credentials, config, enabled: true })
+  });
+  if (!res || !res.ok) return alert('Error saving integration.');
+  closeIntegrationModal();
+  await loadIntegrations();
+  renderDashboard();
+}
+
+async function deleteIntegration() {
+  const serviceId = parseInt(document.getElementById('int-service-id').value);
+  if (!serviceId) return;
+  await api('/api/integrations/' + serviceId, { method: 'DELETE' });
+  closeIntegrationModal();
+  await loadIntegrations();
+  renderDashboard();
+}
+
+// ─── Service Detail Modal ─────────────────────────────────────────
+
+function openDetailModal(serviceId) {
+  const svc = servicesCache.find(s => s.id === serviceId);
+  if (!svc) return;
+  const intg = getServiceIntegration(serviceId);
+
+  document.getElementById('detail-modal-title').textContent = (svc.icon || '🔗') + ' ' + svc.name;
+
+  let html = '<div class="detail-grid">';
+
+  // Basic info
+  html += '<div class="detail-stat"><span class="label">URL</span><a href="' + esc(svc.url) + '" target="_blank" style="color:var(--accent);font-size:12px">' + esc(svc.url) + '</a></div>';
+  if (svc.description) html += '<div class="detail-stat"><span class="label">Description</span><span class="value">' + esc(svc.description) + '</span></div>';
+  html += '<div class="detail-stat"><span class="label">Category</span><span class="value">' + esc(svc.category_name || '—') + '</span></div>';
+
+  // Ping status
+  if (svc.online !== null && svc.online !== undefined) {
+    const statusText = svc.online ? '✅ Online' : '❌ Offline';
+    const statusColor = svc.online ? 'var(--green)' : 'var(--red)';
+    html += '<div class="detail-stat"><span class="label">Status</span><span class="value" style="color:' + statusColor + '">' + statusText + '</span></div>';
+    if (svc.response_ms) html += '<div class="detail-stat"><span class="label">Response</span><span class="value">' + svc.response_ms + 'ms</span></div>';
+  }
+
+  // Integration data
+  if (intg) {
+    const intType = integrationTypesCache[intg.type];
+    html += '<div class="detail-section-title">' + (intType ? intType.icon + ' ' + intType.name : intg.type) + ' Integration</div>';
+    html += '<button class="secondary-btn" style="margin-bottom:10px" onclick="closeDetailModal();openIntegrationModal(' + serviceId + ')">⚙️ Configure</button>';
+
+    if (intg.cached_data) {
+      const data = intg.cached_data;
+      if (data.error) {
+        html += '<div class="detail-stat"><span class="label">Error</span><span class="value" style="color:var(--red)">' + esc(data.error) + '</span></div>';
+      } else {
+        html += renderIntegrationDetails(intg.type, data);
+      }
+    } else {
+      html += '<div class="empty">No data yet. Will refresh automatically.</div>';
+    }
+  } else {
+    html += '<div class="detail-section-title">Integration</div>';
+    html += '<button class="secondary-btn" onclick="closeDetailModal();openIntegrationModal(' + serviceId + ')">🔗 Add Integration</button>';
+  }
+
+  html += '</div>';
+  document.getElementById('detail-modal-body').innerHTML = html;
+  document.getElementById('detail-modal-overlay').classList.add('active');
+}
+
+function closeDetailModal() {
+  document.getElementById('detail-modal-overlay').classList.remove('active');
+}
+
+function renderIntegrationDetails(type, data) {
+  let html = '';
+  if (type === 'homeassistant') {
+    html += '<div class="detail-stat"><span class="label">🏠 Location</span><span class="value">' + esc(data.location || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🔄 State</span><span class="value">' + esc(data.state || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📊 Entities</span><span class="value">' + (data.entities || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📐 Units</span><span class="value">' + esc(data.unit_system || '—') + '</span></div>';
+    if (data.top_domains && data.top_domains.length) {
+      html += '<div class="detail-section-title">Top Entity Domains</div>';
+      data.top_domains.forEach(d => {
+        html += '<div class="detail-stat"><span class="label">' + esc(d.domain) + '</span><span class="value">' + d.count + '</span></div>';
+      });
+    }
+  } else if (type === 'unifi') {
+    html += '<div class="detail-stat"><span class="label">👥 Clients</span><span class="value">' + (data.clients_total || 0) + ' (' + (data.clients_wireless || 0) + ' WiFi, ' + (data.clients_wired || 0) + ' wired)</span></div>';
+    html += '<div class="detail-stat"><span class="label">📡 Devices</span><span class="value">' + (data.devices_total || 0) + ' (' + (data.devices_connected || 0) + ' connected)</span></div>';
+    if (data.health && data.health.length) {
+      html += '<div class="detail-section-title">System Health</div>';
+      data.health.forEach(h => {
+        const status = h.status === 'ok' ? '✅' : '❌';
+        html += '<div class="detail-stat"><span class="label">' + status + ' ' + esc(h.subsystem) + '</span><span class="value">' + esc(h.status) + '</span></div>';
+      });
+    }
+  } else if (type === 'plex') {
+    html += '<div class="detail-stat"><span class="label">🖥️ Server</span><span class="value">' + esc(data.friendly_name || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📚 Libraries</span><span class="value">' + (data.library_count || 0) + '</span></div>';
+    if (data.libraries && data.libraries.length) {
+      html += '<div class="detail-section-title">Libraries</div>';
+      data.libraries.forEach(l => {
+        html += '<div class="detail-stat"><span class="label">' + esc(l.title) + ' (' + esc(l.type) + ')</span><span class="value">' + l.count + ' items</span></div>';
+      });
+    }
+  } else if (type === 'grafana') {
+    html += '<div class="detail-stat"><span class="label">📊 Status</span><span class="value">' + esc(data.status || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📈 Dashboards</span><span class="value">' + (data.dashboards || 0) + '</span></div>';
+  } else if (type === 'portainer') {
+    html += '<div class="detail-stat"><span class="label">🖥️ Endpoints</span><span class="value">' + (data.endpoints || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🐳 Containers</span><span class="value">' + (data.containers_running || 0) + ' / ' + (data.containers_total || 0) + '</span></div>';
+  }
+  return html;
 }
 
 function renderWidgets() {
@@ -725,7 +932,7 @@ document.addEventListener('click', (e) => {
 
 // ─── Modal overlay close on background click ──────────────────────
 
-['service-modal-overlay', 'widget-modal-overlay', 'discover-modal-overlay', 'settings-modal-overlay'].forEach(id => {
+['service-modal-overlay', 'widget-modal-overlay', 'discover-modal-overlay', 'settings-modal-overlay', 'integration-modal-overlay', 'detail-modal-overlay'].forEach(id => {
   document.getElementById(id)?.addEventListener('click', (e) => {
     if (e.target.id === id) e.target.classList.remove('active');
   });

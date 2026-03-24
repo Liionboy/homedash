@@ -928,6 +928,63 @@ body {
   animation: pulse 2s ease-in-out infinite;
 }
 
+/* ── Service Detail ── */
+.detail-grid { display: grid; gap: 12px; }
+
+.detail-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.detail-stat .label { color: var(--muted); font-size: 13px; }
+.detail-stat .value { font-weight: 600; font-size: 14px; }
+
+.detail-section-title {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.integration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--accent-glow);
+  color: var(--accent);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.integration-config-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--transition);
+  z-index: 1;
+}
+
+.service-card:hover .integration-config-btn { opacity: 1; }
+.integration-config-btn:hover { color: var(--accent); border-color: var(--accent); }
+
 /* ── Settings Modal ── */
 .settings-section {
   padding: 14px 0;

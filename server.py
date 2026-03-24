@@ -95,6 +95,20 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_services_cat ON services(category_id);
         CREATE INDEX IF NOT EXISTS idx_discovered_host ON discovered(host, port);
+        CREATE TABLE IF NOT EXISTS integrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service_id INTEGER NOT NULL UNIQUE,
+            type TEXT NOT NULL,
+            auth_type TEXT NOT NULL DEFAULT 'bearer',
+            credentials TEXT DEFAULT '{}',
+            config TEXT DEFAULT '{}',
+            enabled INTEGER DEFAULT 1,
+            cached_data TEXT DEFAULT NULL,
+            cache_updated_at REAL DEFAULT 0,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL,
+            FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
+        );
     """)
     # Default admin
     existing = db.execute("SELECT id FROM users WHERE username='admin'").fetchone()
@@ -260,6 +274,228 @@ async def ping_service(url: str) -> dict:
     except Exception as e:
         return {"online": False, "status": None, "response_ms": None, "error": str(e)[:100]}
 
+# ─── Integration Fetchers ─────────────────────────────────────────
+
+INTEGRATION_TYPES = {
+    "homeassistant": {
+        "name": "Home Assistant",
+        "icon": "🏠",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "Long-Lived Access Token", "type": "password", "required": True},
+        },
+    },
+    "unifi": {
+        "name": "UniFi Controller",
+        "icon": "📡",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+            "site": {"label": "Site ID", "type": "text", "required": False, "default": "default"},
+        },
+    },
+    "plex": {
+        "name": "Plex",
+        "icon": "🎬",
+        "auth_type": "token",
+        "fields": {
+            "token": {"label": "X-Plex-Token", "type": "password", "required": True},
+        },
+    },
+    "grafana": {
+        "name": "Grafana",
+        "icon": "📊",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "portainer": {
+        "name": "Portainer",
+        "icon": "🐳",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "JWT Token", "type": "password", "required": True},
+        },
+    },
+}
+
+async def fetch_integration_data(itype: str, credentials: dict, base_url: str, config: dict = None) -> dict:
+    """Fetch live data from a service integration."""
+    config = config or {}
+    try:
+        if itype == "homeassistant":
+            return await _fetch_homeassistant(credentials, base_url)
+        elif itype == "unifi":
+            return await _fetch_unifi(credentials, base_url, config)
+        elif itype == "plex":
+            return await _fetch_plex(credentials, base_url)
+        elif itype == "grafana":
+            return await _fetch_grafana(credentials, base_url)
+        elif itype == "portainer":
+            return await _fetch_portainer(credentials, base_url)
+    except Exception as e:
+        return {"error": str(e)[:200]}
+    return {"error": "Unknown integration type"}
+
+async def _fetch_homeassistant(creds: dict, base_url: str) -> dict:
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        # Get states count
+        r = await client.get(f"{base_url}/api/states", headers=headers)
+        if r.status_code != 200:
+            return {"error": f"HA API error: {r.status_code}"}
+        states = r.json()
+
+        # Get config
+        rc = await client.get(f"{base_url}/api/config", headers=headers)
+        config_data = rc.json() if rc.status_code == 200 else {}
+
+        # Count by domain
+        domains = {}
+        for s in states:
+            domain = s["entity_id"].split(".")[0]
+            domains[domain] = domains.get(domain, 0) + 1
+
+        # Top 5 domains
+        top_domains = sorted(domains.items(), key=lambda x: -x[1])[:5]
+
+        return {
+            "entities": len(states),
+            "version": config_data.get("version", "—"),
+            "state": config_data.get("state", "—"),
+            "location": config_data.get("location_name", "—"),
+            "unit_system": config_data.get("unit_system", {}).get("name", "—"),
+            "top_domains": [{"domain": d, "count": c} for d, c in top_domains],
+            "safe_mode": config_data.get("safe_mode", False),
+        }
+
+async def _fetch_unifi(creds: dict, base_url: str, config: dict) -> dict:
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    site = config.get("site", "default")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        # Login
+        login = await client.post(f"{base_url}/api/login", json={"username": username, "password": password})
+        if login.status_code != 200:
+            return {"error": f"UniFi login failed: {login.status_code}"}
+
+        # Get clients
+        r = await client.get(f"{base_url}/api/s/{site}/stat/sta")
+        clients = r.json().get("data", []) if r.status_code == 200 else []
+
+        # Get devices
+        rd = await client.get(f"{base_url}/api/s/{site}/stat/device")
+        devices = rd.json().get("data", []) if rd.status_code == 200 else []
+
+        # Get health
+        rh = await client.get(f"{base_url}/api/s/{site}/stat/health")
+        health = rh.json().get("data", []) if rh.status_code == 200 else []
+
+        # Logout
+        await client.get(f"{base_url}/logout")
+
+        wired = sum(1 for c in clients if c.get("is_wired"))
+        wireless = len(clients) - wired
+        device_status = {
+            "adopted": sum(1 for d in devices if d.get("adopted")),
+            "connected": sum(1 for d in devices if d.get("state") == 1),
+            "disconnected": sum(1 for d in devices if d.get("state") != 1 and d.get("adopted")),
+        }
+
+        return {
+            "clients_total": len(clients),
+            "clients_wired": wired,
+            "clients_wireless": wireless,
+            "devices_total": len(devices),
+            "devices_adopted": device_status["adopted"],
+            "devices_connected": device_status["connected"],
+            "devices_disconnected": device_status["disconnected"],
+            "health": [{"subsystem": h.get("subsystem"), "status": h.get("status")} for h in health],
+        }
+
+async def _fetch_plex(creds: dict, base_url: str) -> dict:
+    token = creds.get("token", "")
+    headers = {"X-Plex-Token": token, "Accept": "application/json"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/library/sections", headers=headers)
+        if r.status_code != 200:
+            return {"error": f"Plex API error: {r.status_code}"}
+        data = r.json()
+        sections = data.get("MediaContainer", {}).get("Directory", [])
+
+        libraries = []
+        for s in sections:
+            libraries.append({
+                "title": s.get("title", "—"),
+                "type": s.get("type", "—"),
+                "count": s.get("childCount", 0),
+            })
+
+        # Server info
+        ri = await client.get(f"{base_url}/", headers=headers)
+        server_info = {}
+        if ri.status_code == 200:
+            mc = ri.json().get("MediaContainer", {})
+            server_info = {
+                "version": mc.get("version", "—"),
+                "platform": mc.get("platform", "—"),
+                "friendly_name": mc.get("friendlyName", "—"),
+            }
+
+        return {
+            "libraries": libraries,
+            "library_count": len(libraries),
+            **server_info,
+        }
+
+async def _fetch_grafana(creds: dict, base_url: str) -> dict:
+    api_key = creds.get("api_key", "")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/health", headers=headers)
+        health = r.json() if r.status_code == 200 else {}
+
+        rd = await client.get(f"{base_url}/api/dashboards/home", headers=headers)
+        dashboards = 0
+        if rd.status_code == 200:
+            rd2 = await client.get(f"{base_url}/api/search?type=dash-db&limit=1", headers=headers)
+            if rd2.status_code == 200:
+                dashboards = len(rd2.json())
+
+        return {
+            "status": health.get("database", "—"),
+            "version": health.get("version", "—"),
+            "dashboards": dashboards,
+        }
+
+async def _fetch_portainer(creds: dict, base_url: str) -> dict:
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        # Get endpoints
+        re = await client.get(f"{base_url}/api/endpoints", headers=headers)
+        endpoints = re.json() if re.status_code == 200 else []
+
+        # Get containers for first endpoint
+        containers = []
+        if endpoints:
+            eid = endpoints[0].get("Id", 1)
+            rc = await client.get(f"{base_url}/api/endpoints/{eid}/docker/containers/json?all=true", headers=headers)
+            if rc.status_code == 200:
+                containers = rc.json()
+
+        running = sum(1 for c in containers if c.get("State") == "running")
+
+        return {
+            "endpoints": len(endpoints),
+            "containers_total": len(containers),
+            "containers_running": running,
+            "containers_stopped": len(containers) - running,
+        }
+
 # ─── Monitor Loop ──────────────────────────────────────────────────
 
 latest_status = {"services": [], "timestamp": 0}
@@ -269,6 +505,7 @@ async def run_monitor_loop():
     while True:
         try:
             db = get_db()
+            db_int = get_db()
             services = [dict(r) for r in db.execute(
                 "SELECT s.*, c.name as category_name FROM services s LEFT JOIN categories c ON s.category_id=c.id ORDER BY s.sort_order, s.name"
             ).fetchall()]
@@ -281,7 +518,19 @@ async def run_monitor_loop():
                     svc.update(ping)
                 else:
                     svc["online"] = None
+                # Fetch integration data
+                intg = db_int.execute("SELECT * FROM integrations WHERE service_id=? AND enabled=1", (svc["id"],)).fetchone()
+                if intg:
+                    creds = json.loads(intg["credentials"] or "{}")
+                    cfg = json.loads(intg["config"] or "{}")
+                    int_data = await fetch_integration_data(intg["type"], creds, svc["url"], cfg)
+                    svc["integration"] = {"type": intg["type"], "data": int_data}
+                    db_int.execute("UPDATE integrations SET cached_data=?, cache_updated_at=? WHERE id=?",
+                                   (json.dumps(int_data), time.time(), intg["id"]))
+                else:
+                    svc["integration"] = None
                 results.append(svc)
+            db_int.commit(); db_int.close()
 
             latest_status = {"services": results, "timestamp": time.time()}
             await manager.broadcast({"type": "status_update", "data": latest_status})
@@ -645,6 +894,111 @@ async def get_status(request: Request):
 async def ping_url(request: Request, url: str):
     is_authed(request)
     return await ping_service(url)
+
+# ─── Integrations API ──────────────────────────────────────────────
+
+@app.get("/api/integrations/types")
+async def list_integration_types(request: Request):
+    """List available integration types and their config fields."""
+    is_authed(request)
+    return INTEGRATION_TYPES
+
+@app.get("/api/integrations")
+async def list_integrations(request: Request):
+    """List all integrations (credentials masked)."""
+    is_authed(request)
+    db = get_db()
+    rows = [dict(r) for r in db.execute("SELECT * FROM integrations").fetchall()]
+    db.close()
+    # Mask credentials
+    for row in rows:
+        creds = json.loads(row.get("credentials") or "{}")
+        masked = {}
+        for k, v in creds.items():
+            if v and len(str(v)) > 4:
+                masked[k] = str(v)[:4] + "****"
+            else:
+                masked[k] = "****"
+        row["credentials_masked"] = masked
+        row["credentials"] = None  # Don't expose
+    return rows
+
+@app.get("/api/integrations/{service_id}")
+async def get_integration(request: Request, service_id: int):
+    """Get integration for a specific service (credentials masked)."""
+    is_authed(request)
+    db = get_db()
+    row = db.execute("SELECT * FROM integrations WHERE service_id=?", (service_id,)).fetchone()
+    db.close()
+    if not row:
+        return None
+    result = dict(row)
+    creds = json.loads(result.get("credentials") or "{}")
+    masked = {}
+    for k, v in creds.items():
+        if v and len(str(v)) > 4:
+            masked[k] = str(v)[:4] + "****"
+        else:
+            masked[k] = "****"
+    result["credentials_masked"] = masked
+    result["credentials"] = None
+    return result
+
+class IntegrationIn(BaseModel):
+    service_id: int
+    type: str
+    auth_type: str = "bearer"
+    credentials: dict = {}
+    config: dict = {}
+    enabled: bool = True
+
+@app.post("/api/integrations")
+async def create_integration(request: Request, intg: IntegrationIn):
+    """Create or update integration for a service."""
+    is_authed(request)
+    now = time.time()
+    db = get_db()
+    # Check if exists
+    existing = db.execute("SELECT id FROM integrations WHERE service_id=?", (intg.service_id,)).fetchone()
+    if existing:
+        db.execute(
+            "UPDATE integrations SET type=?, auth_type=?, credentials=?, config=?, enabled=?, updated_at=? WHERE service_id=?",
+            (intg.type, intg.auth_type, json.dumps(intg.credentials), json.dumps(intg.config), int(intg.enabled), now, intg.service_id))
+    else:
+        db.execute(
+            "INSERT INTO integrations(service_id,type,auth_type,credentials,config,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+            (intg.service_id, intg.type, intg.auth_type, json.dumps(intg.credentials), json.dumps(intg.config), int(intg.enabled), now, now))
+    db.commit(); db.close()
+    return {"ok": True}
+
+@app.delete("/api/integrations/{service_id}")
+async def delete_integration(request: Request, service_id: int):
+    """Remove integration for a service."""
+    is_authed(request)
+    db = get_db()
+    db.execute("DELETE FROM integrations WHERE service_id=?", (service_id,))
+    db.commit(); db.close()
+    return {"ok": True}
+
+@app.get("/api/integrations/{service_id}/refresh")
+async def refresh_integration(request: Request, service_id: int):
+    """Force refresh integration data."""
+    is_authed(request)
+    db = get_db()
+    intg = db.execute("SELECT * FROM integrations WHERE service_id=? AND enabled=1", (service_id,)).fetchone()
+    svc = db.execute("SELECT url FROM services WHERE id=?", (service_id,)).fetchone()
+    db.close()
+    if not intg or not svc:
+        raise HTTPException(404, "Integration or service not found")
+    creds = json.loads(intg["credentials"] or "{}")
+    cfg = json.loads(intg["config"] or "{}")
+    data = await fetch_integration_data(intg["type"], creds, svc["url"], cfg)
+    # Update cache
+    db = get_db()
+    db.execute("UPDATE integrations SET cached_data=?, cache_updated_at=? WHERE id=?",
+               (json.dumps(data), time.time(), intg["id"]))
+    db.commit(); db.close()
+    return data
 
 # ─── Health ────────────────────────────────────────────────────────
 

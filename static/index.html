@@ -194,6 +194,41 @@
   </div>
 </div>
 
+<!-- Integration Modal -->
+<div class="modal-overlay" id="integration-modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="int-modal-title">🔗 Service Integration</h2>
+      <button class="modal-close" onclick="closeIntegrationModal()">&times;</button>
+    </div>
+    <div class="modal-body form-grid">
+      <input type="hidden" id="int-service-id">
+      <label><span>Integration Type</span>
+        <select id="int-type" onchange="showIntegrationFields()">
+          <option value="">— Select type —</option>
+        </select>
+      </label>
+      <div id="int-fields"></div>
+      <div class="form-actions">
+        <button class="primary-btn" onclick="saveIntegration()">Save Integration</button>
+        <button class="secondary-btn" onclick="deleteIntegration()">Remove</button>
+        <button class="secondary-btn" onclick="closeIntegrationModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Service Detail Modal -->
+<div class="modal-overlay" id="detail-modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="detail-modal-title">Service Details</h2>
+      <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="detail-modal-body"></div>
+  </div>
+</div>
+
 <script src="/static/js/app.js"></script>
 </body>
 </html>
