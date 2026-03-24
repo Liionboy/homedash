@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README.md documentation
 - CHANGELOG.md
 
+## [0.3.0] - 2026-03-24
+
+### Added
+- **Glassmorphism design** with backdrop blur and subtle gradients
+- **Search bar** — search services by name/description/URL
+- **Search engine switcher** — Google, DuckDuckGo, Bing, Brave
+- **Keyboard shortcuts**: Ctrl+K or / for search, Ctrl+N for new service, Escape to close modals
+- **Header clock** — real-time display in header
+- **Quick stats bar** — online/offline/unknown service counts
+- **Favorites row** — pinned services shown at top
+- **Collapsible sections** — collapse/expand categories (persisted)
+- **Bookmarks widget** — grid of quick links
+- **Settings modal** — unified services/widgets/categories manager
+- Service cards redesigned with icon boxes and animated status indicators
+- Progress bars for system widget with color coding
+- Responsive improvements for mobile
+
+### Changed
+- Complete CSS overhaul — modern glassmorphism style
+- Better widget styling with gradients and depth
+- Improved search results overlay
+- Better modal design with blur backdrop
+
 ## [0.2.0] - 2026-03-24
 
 ### Added
@@ -57,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Description              |
 |---------|------------|--------------------------|
+| 0.3.0   | 2026-03-24 | Homepage-style UI v2     |
 | 0.2.0   | 2026-03-24 | Drag-and-drop + status   |
 | 0.1.0   | 2026-03-24 | Initial release          |
 
