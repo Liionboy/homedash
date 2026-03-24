@@ -285,7 +285,13 @@ async function loadIntegrations() {
 }
 
 function getServiceIntegration(serviceId) {
-  return integrationsCache.find(i => i.service_id === serviceId);
+  // Check integrationsCache first (for credentials/config), then service data
+  const cached = integrationsCache.find(i => i.service_id === serviceId);
+  const svc = servicesCache.find(s => s.id === serviceId);
+  if (svc && svc.integration && svc.integration.data) {
+    return { ...svc.integration, service_id: serviceId };
+  }
+  return cached || null;
 }
 
 function openIntegrationModal(serviceId) {

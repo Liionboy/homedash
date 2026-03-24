@@ -665,6 +665,18 @@ async def list_services(request: Request):
     rows = [dict(r) for r in db.execute(
         "SELECT s.*, c.name as category_name FROM services s LEFT JOIN categories c ON s.category_id=c.id ORDER BY c.sort_order, s.sort_order, s.name"
     ).fetchall()]
+    # Attach integration data
+    for row in rows:
+        intg = db.execute("SELECT * FROM integrations WHERE service_id=?", (row["id"],)).fetchone()
+        if intg:
+            cached = json.loads(intg["cached_data"]) if intg["cached_data"] else None
+            row["integration"] = {
+                "type": intg["type"],
+                "data": cached,
+                "enabled": bool(intg["enabled"]),
+            }
+        else:
+            row["integration"] = None
     db.close()
     return rows
 
