@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README.md documentation
 - CHANGELOG.md
 
+## [0.4.0] - 2026-03-25
+
+### Added
+- **Service Integrations** — connect services with credentials to see live data
+- **Home Assistant** integration (Long-Lived Token): entities count, version, state, top domains
+- **UniFi Controller** integration (username/password): clients, devices, system health
+- **Plex** integration (X-Plex-Token): server info, libraries
+- **Grafana** integration (API Key): health, dashboards
+- **Portainer** integration (JWT): endpoints, containers
+- **Service Detail Modal** — click 📊 on any card to see details
+- **Integration Modal** — configure credentials per service
+- **Integration badges** on service cards
+- API: `/api/integrations/types`, `/api/integrations`, `/api/integrations/{id}/refresh`
+
 ## [0.3.0] - 2026-03-24
 
 ### Added
@@ -80,6 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Description              |
 |---------|------------|--------------------------|
+| 0.4.0   | 2026-03-25 | Service integrations     |
 | 0.3.0   | 2026-03-24 | Homepage-style UI v2     |
 | 0.2.0   | 2026-03-24 | Drag-and-drop + status   |
 | 0.1.0   | 2026-03-24 | Initial release          |
