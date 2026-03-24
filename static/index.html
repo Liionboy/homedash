@@ -1,61 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Homedash</title>
 <link rel="icon" href="/static/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
 <!-- Header -->
 <header class="header">
-  <h1>🏠 Homedash</h1>
-  <div class="header-actions">
+  <div class="header-left">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 32 32">
+        <rect width="32" height="32" rx="8" fill="#0f1527"/>
+        <circle cx="16" cy="16" r="4" fill="#3b82f6"/>
+        <circle cx="16" cy="16" r="8" fill="none" stroke="#3b82f6" stroke-width="1.5" opacity=".5"/>
+        <circle cx="16" cy="16" r="12" fill="none" stroke="#3b82f6" stroke-width="1" opacity=".3"/>
+        <circle cx="8" cy="8" r="2.5" fill="#22c55e"/>
+        <circle cx="24" cy="8" r="2.5" fill="#22c55e"/>
+        <circle cx="24" cy="24" r="2.5" fill="#ef4444"/>
+        <circle cx="8" cy="24" r="2.5" fill="#22c55e"/>
+        <line x1="8" y1="8" x2="16" y2="16" stroke="#3b82f6" stroke-width="1" opacity=".4"/>
+        <line x1="24" y1="8" x2="16" y2="16" stroke="#3b82f6" stroke-width="1" opacity=".4"/>
+        <line x1="24" y1="24" x2="16" y2="16" stroke="#3b82f6" stroke-width="1" opacity=".4"/>
+        <line x1="8" y1="24" x2="16" y2="16" stroke="#3b82f6" stroke-width="1" opacity=".4"/>
+      </svg>
+      Homedash
+    </div>
+  </div>
+
+  <div class="header-center">
+    <div class="search-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="text" id="search-input" placeholder="Search services or type a URL..." autocomplete="off">
+      <button class="search-engine" id="search-engine-btn" title="Click to change search engine">Google</button>
+      <div class="search-results" id="search-results"></div>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="header-clock">
+      <span class="time" id="header-time">--:--</span>
+    </div>
     <div class="conn-dot" id="ws-dot" title="Disconnected"></div>
-    <button class="header-btn" onclick="openDiscoverModal()">🔍 Discover</button>
-    <button class="header-btn" onclick="openWidgetModal()">➕ Widget</button>
-    <button class="header-btn" onclick="openServiceModal()">➕ Service</button>
-    <button class="header-btn" onclick="logout()">🚪 Logout</button>
+    <button class="header-btn" onclick="openDiscoverModal()">🔍</button>
+    <button class="header-btn" onclick="openWidgetModal()">➕</button>
+    <button class="header-btn" onclick="openSettingsModal()">⚙️</button>
+    <button class="header-btn" onclick="logout()">🚪</button>
   </div>
 </header>
 
-<!-- Tabs -->
-<nav class="tabs">
-  <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
-  <button class="tab-btn" data-tab="services" onclick="switchTab('services')">🔗 Services</button>
-  <button class="tab-btn" data-tab="widgets" onclick="switchTab('widgets')">🧩 Widgets</button>
-</nav>
+<!-- Quick Stats Bar -->
+<div class="quick-stats" id="quick-stats">
+  <div class="quick-stat">
+    <span class="dot green"></span>
+    <span class="value" id="stat-online">0</span> online
+  </div>
+  <div class="quick-stat">
+    <span class="dot red"></span>
+    <span class="value" id="stat-offline">0</span> offline
+  </div>
+  <div class="quick-stat">
+    <span class="dot yellow"></span>
+    <span class="value" id="stat-unknown">0</span> unknown
+  </div>
+  <div class="quick-stat">
+    📦 <span class="value" id="stat-services">0</span> services
+  </div>
+</div>
 
-<!-- Dashboard Tab -->
-<main class="main" id="tab-dashboard">
+<!-- Main Content -->
+<main class="main" id="main-content">
+  <!-- Favorites -->
+  <div id="favorites-area"></div>
+
+  <!-- Widgets -->
   <div id="widgets-area" class="widgets-grid"></div>
+
+  <!-- Services by Category -->
   <div id="dashboard-services"></div>
-</main>
-
-<!-- Services Tab -->
-<main class="main hidden" id="tab-services">
-  <div id="services-manager"></div>
-</main>
-
-<!-- Widgets Tab -->
-<main class="main hidden" id="tab-widgets">
-  <div id="widgets-manager"></div>
 </main>
 
 <!-- Add/Edit Service Modal -->
 <div class="modal-overlay" id="service-modal-overlay">
   <div class="modal">
-    <div class="modal-header"><h2 id="svc-modal-title">Add Service</h2><button class="modal-close" onclick="closeServiceModal()">&times;</button></div>
+    <div class="modal-header">
+      <h2 id="svc-modal-title">Add Service</h2>
+      <button class="modal-close" onclick="closeServiceModal()">&times;</button>
+    </div>
     <form class="modal-body form-grid" id="service-form">
-      <input type="hidden" id="svc-id" />
-      <label><span>Name</span><input id="svc-name" required /></label>
-      <label><span>URL</span><input id="svc-url" type="url" required placeholder="https://..." /></label>
-      <label><span>Icon (emoji or URL)</span><input id="svc-icon" placeholder="🔗" /></label>
-      <label><span>Description</span><input id="svc-desc" placeholder="Optional" /></label>
+      <input type="hidden" id="svc-id">
+      <label><span>Name</span><input id="svc-name" required></label>
+      <label><span>URL</span><input id="svc-url" type="url" required placeholder="https://..."></label>
+      <label><span>Icon (emoji or URL)</span><input id="svc-icon" placeholder="🔗"></label>
+      <label><span>Description</span><input id="svc-desc" placeholder="Short description"></label>
       <label><span>Category</span><select id="svc-category"><option value="">— None —</option></select></label>
-      <label><span>Ping URL (optional)</span><input id="svc-ping" placeholder="https://service/api/health" /></label>
-      <label class="checkbox-row"><input id="svc-fav" type="checkbox" /> <span>Favorite (pin to top)</span></label>
+      <label><span>Ping URL</span><input id="svc-ping" placeholder="https://service/api/health"></label>
+      <label class="checkbox-row">
+        <input id="svc-fav" type="checkbox">
+        <span>⭐ Favorite (pin to top)</span>
+      </label>
       <div class="form-actions">
         <button type="submit" class="primary-btn">Save</button>
         <button type="button" class="secondary-btn" onclick="closeServiceModal()">Cancel</button>
@@ -67,7 +117,10 @@
 <!-- Widget Modal -->
 <div class="modal-overlay" id="widget-modal-overlay">
   <div class="modal">
-    <div class="modal-header"><h2>Add Widget</h2><button class="modal-close" onclick="closeWidgetModal()">&times;</button></div>
+    <div class="modal-header">
+      <h2>Add Widget</h2>
+      <button class="modal-close" onclick="closeWidgetModal()">&times;</button>
+    </div>
     <div class="modal-body form-grid">
       <label><span>Widget Type</span>
         <select id="w-type" onchange="showWidgetConfig()">
@@ -75,13 +128,14 @@
           <option value="system">💻 System Info</option>
           <option value="docker">🐳 Docker Containers</option>
           <option value="clock">🕐 Clock</option>
+          <option value="bookmarks">🔖 Bookmarks</option>
         </select>
       </label>
       <div id="w-config-weather">
-        <label><span>City</span><input id="w-city" value="Bucharest" /></label>
+        <label><span>City</span><input id="w-city" value="Bucharest"></label>
       </div>
       <div id="w-config-clock" class="hidden">
-        <label><span>Timezone</span><input id="w-tz" value="Europe/Bucharest" /></label>
+        <label><span>Timezone</span><input id="w-tz" value="Europe/Bucharest"></label>
       </div>
       <div class="form-actions">
         <button class="primary-btn" onclick="saveWidget()">Add Widget</button>
@@ -94,7 +148,10 @@
 <!-- Discover Modal -->
 <div class="modal-overlay" id="discover-modal-overlay">
   <div class="modal">
-    <div class="modal-header"><h2>🔍 Auto-Discover Services</h2><button class="modal-close" onclick="closeDiscoverModal()">&times;</button></div>
+    <div class="modal-header">
+      <h2>🔍 Auto-Discover Services</h2>
+      <button class="modal-close" onclick="closeDiscoverModal()">&times;</button>
+    </div>
     <div class="modal-body">
       <div class="form-actions" style="margin-bottom:14px">
         <button class="primary-btn" onclick="runDockerDiscover()">🐳 Scan Docker</button>
@@ -102,6 +159,35 @@
       </div>
       <div id="discover-results" class="discover-grid">
         <div class="empty">Click a scan button to discover services.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ Settings</h2>
+      <button class="modal-close" onclick="closeSettingsModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-section">
+        <h3>Services Manager</h3>
+        <div id="settings-services"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Widgets Manager</h3>
+        <div id="settings-widgets"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Categories</h3>
+        <div id="settings-categories"></div>
+        <div class="form-actions" style="margin-top:10px">
+          <input id="new-cat-name" placeholder="Category name" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-size:13px;flex:1">
+          <input id="new-cat-icon" placeholder="Icon" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-size:13px;width:60px;text-align:center">
+          <button class="primary-btn" onclick="addCategory()">Add</button>
+        </div>
       </div>
     </div>
   </div>

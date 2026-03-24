@@ -588,6 +588,8 @@ async def fetch_widget_data(wtype: str, config: dict) -> dict:
             return {"time": now.strftime("%H:%M:%S"), "date": now.strftime("%A, %B %d, %Y"), "timezone": tz}
         elif wtype == "quick-links":
             return {"links": config.get("links", [])}
+        elif wtype == "bookmarks":
+            return {"links": config.get("links", [])}
     except Exception as e:
         return {"error": str(e)}
     return {}
