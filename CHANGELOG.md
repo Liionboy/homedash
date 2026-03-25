@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-03-25
+
+### Fixed
+- **UniFi OS login support** — auto-detects UniFi OS (Cloud Gateway, UDM) vs standalone controller
+  - UniFi OS: `POST /api/auth/login` + `/proxy/network/api/s/{site}/...`
+  - Standalone fallback: `POST /api/login` + `/api/s/{site}/...`
+- **Integration data not showing on UI** — `getServiceIntegration()` now normalizes output from both
+  `svc.integration` and `integrationsCache` into a consistent shape
+- Default site to `default` when empty in UniFi config
+
 ## [0.5.0] - 2026-03-25
 
 ### Added
@@ -101,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Description              |
 |---------|------------|--------------------------|
+| 0.5.1   | 2026-03-25 | UniFi OS + UI fix        |
 | 0.5.0   | 2026-03-25 | 30 service integrations  |
 | 0.4.0   | 2026-03-25 | Service integrations     |
 | 0.3.0   | 2026-03-24 | Homepage-style UI v2     |
