@@ -32,6 +32,7 @@
 | Nextcloud | ☁️ |
 | Plex | 🎬 |
 | Jellyfin | 🎬 |
+| Emby | 🎬 |
 | Portainer | 🐳 |
 | Grafana | 📊 |
 | Prometheus | 📈 |
@@ -40,9 +41,17 @@
 | Vaultwarden | 🔐 |
 | Sonarr | 📺 |
 | Radarr | 🎬 |
+| Lidarr | 🎵 |
+| Bazarr | 📝 |
+| Prowlarr | 🔍 |
 | qBittorrent | 📥 |
+| Transmission | 📥 |
+| Deluge | 📥 |
+| SABnzbd | 📦 |
+| NZBGet | 📦 |
 | Syncthing | 🔄 |
 | Gitea | 🔧 |
+| GitLab | 🦊 |
 | Uptime Kuma | 📡 |
 | Immich | 📸 |
 | Paperless | 📄 |
@@ -51,6 +60,10 @@
 | Authelia | 🔑 |
 | Oracle DB | 🗄️ |
 | OpenClaw | 🤖 |
+| Proxmox | 🖥️ |
+| Tailscale | 🔒 |
+| Synology | 💾 |
+| UniFi | 📡 |
 
 ## Categorii
 
