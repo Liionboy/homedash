@@ -439,7 +439,6 @@ function renderIntegrationDetails(type, data) {
     html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
     html += '<div class="detail-stat"><span class="label">🔄 State</span><span class="value">' + esc(data.state || '—') + '</span></div>';
     html += '<div class="detail-stat"><span class="label">📊 Entities</span><span class="value">' + (data.entities || '—') + '</span></div>';
-    html += '<div class="detail-stat"><span class="label">📐 Units</span><span class="value">' + esc(data.unit_system || '—') + '</span></div>';
     if (data.top_domains && data.top_domains.length) {
       html += '<div class="detail-section-title">Top Entity Domains</div>';
       data.top_domains.forEach(d => {
@@ -452,8 +451,8 @@ function renderIntegrationDetails(type, data) {
     if (data.health && data.health.length) {
       html += '<div class="detail-section-title">System Health</div>';
       data.health.forEach(h => {
-        const status = h.status === 'ok' ? '✅' : '❌';
-        html += '<div class="detail-stat"><span class="label">' + status + ' ' + esc(h.subsystem) + '</span><span class="value">' + esc(h.status) + '</span></div>';
+        const s = h.status === 'ok' ? '✅' : '❌';
+        html += '<div class="detail-stat"><span class="label">' + s + ' ' + esc(h.subsystem) + '</span><span class="value">' + esc(h.status) + '</span></div>';
       });
     }
   } else if (type === 'plex') {
@@ -473,8 +472,110 @@ function renderIntegrationDetails(type, data) {
   } else if (type === 'portainer') {
     html += '<div class="detail-stat"><span class="label">🖥️ Endpoints</span><span class="value">' + (data.endpoints || 0) + '</span></div>';
     html += '<div class="detail-stat"><span class="label">🐳 Containers</span><span class="value">' + (data.containers_running || 0) + ' / ' + (data.containers_total || 0) + '</span></div>';
+  } else if (type === 'pihole') {
+    html += '<div class="detail-stat"><span class="label">🔍 DNS Queries</span><span class="value">' + _fmt(data.dns_queries_today) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🚫 Blocked</span><span class="value">' + _fmt(data.ads_blocked_today) + ' (' + (data.ads_percentage_today || 0) + '%)</span></div>';
+    html += '<div class="detail-stat"><span class="label">🛡️ Gravity</span><span class="value">' + _fmt(data.domains_being_blocked) + ' domains</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+  } else if (type === 'sonarr' || type === 'radarr' || type === 'lidarr') {
+    const label = type === 'sonarr' ? '📺 Shows' : type === 'radarr' ? '🎬 Movies' : '🎵 Artists';
+    html += '<div class="detail-stat"><span class="label">' + label + '</span><span class="value">' + (data.total || 0) + ' (' + (data.monitored || 0) + ' monitored)</span></div>';
+    html += '<div class="detail-stat"><span class="label">📥 Queue</span><span class="value">' + (data.queue || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">❓ Missing</span><span class="value">' + (data.wanted || 0) + '</span></div>';
+  } else if (type === 'prowlarr') {
+    html += '<div class="detail-stat"><span class="label">🔍 Indexers</span><span class="value">' + (data.indexers || 0) + ' (' + (data.enabled || 0) + ' enabled)</span></div>';
+  } else if (type === 'bazarr') {
+    html += '<div class="detail-stat"><span class="label">📺 Series</span><span class="value">' + (data.series || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🎬 Movies</span><span class="value">' + (data.movies || 0) + '</span></div>';
+  } else if (type === 'qbittorrent') {
+    html += '<div class="detail-stat"><span class="label">📥 Download</span><span class="value">' + _fmtSpeed(data.download_speed) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📤 Upload</span><span class="value">' + _fmtSpeed(data.upload_speed) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📥 Torrents</span><span class="value">' + (data.total_torrents || 0) + ' (' + (data.completed || 0) + ' done, ' + (data.leeching || 0) + ' active)</span></div>';
+  } else if (type === 'transmission') {
+    html += '<div class="detail-stat"><span class="label">📥 Download</span><span class="value">' + _fmtSpeed(data.download_speed) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📤 Upload</span><span class="value">' + _fmtSpeed(data.upload_speed) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📥 Active</span><span class="value">' + (data.active_torrents || 0) + ' / ' + (data.torrent_count || 0) + '</span></div>';
+  } else if (type === 'deluge') {
+    html += '<div class="detail-stat"><span class="label">📥 Download</span><span class="value">' + _fmtSpeed(data.download_speed) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📤 Upload</span><span class="value">' + _fmtSpeed(data.upload_speed) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📥 Torrents</span><span class="value">' + (data.total_torrents || 0) + '</span></div>';
+  } else if (type === 'jellyfin' || type === 'emby') {
+    html += '<div class="detail-stat"><span class="label">🖥️ Server</span><span class="value">' + esc(data.server_name || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">👤 Users</span><span class="value">' + (data.users || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🔴 Active</span><span class="value">' + (data.active_sessions || 0) + ' sessions</span></div>';
+    html += '<div class="detail-stat"><span class="label">🎬 Movies</span><span class="value">' + _fmt(data.movies) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📺 Series</span><span class="value">' + _fmt(data.series) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🎵 Music</span><span class="value">' + _fmt(data.music) + '</span></div>';
+  } else if (type === 'proxmox') {
+    html += '<div class="detail-stat"><span class="label">🖥️ Nodes</span><span class="value">' + (data.nodes || 0) + ' — ' + esc((data.node_names || []).join(', ')) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">💻 VMs</span><span class="value">' + (data.vms_running || 0) + ' running / ' + (data.vms_total || 0) + ' total</span></div>';
+  } else if (type === 'tailscale') {
+    html += '<div class="detail-stat"><span class="label">🌐 Tailnet</span><span class="value">' + esc(data.tailnet || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📱 Devices</span><span class="value">' + (data.devices || 0) + ' (' + (data.online || 0) + ' online, ' + (data.offline || 0) + ' offline)</span></div>';
+  } else if (type === 'uptimekuma') {
+    html += '<div class="detail-stat"><span class="label">📡 Monitors</span><span class="value">' + (data.monitors || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">✅ Up</span><span class="value">' + (data.up || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">❌ Down</span><span class="value">' + (data.down || 0) + '</span></div>';
+  } else if (type === 'nextcloud') {
+    html += '<div class="detail-stat"><span class="label">👤 User</span><span class="value">' + esc(data.display_name || data.username || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+  } else if (type === 'adguard') {
+    html += '<div class="detail-stat"><span class="label">🔍 DNS Queries</span><span class="value">' + _fmt(data.dns_queries) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🚫 Blocked</span><span class="value">' + _fmt(data.blocked) + ' (' + (data.blocked_pct || 0) + '%)</span></div>';
+    html += '<div class="detail-stat"><span class="label">🛡️ Safe Browsing</span><span class="value">' + _fmt(data.safe_browsing) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+  } else if (type === 'sabnzbd') {
+    html += '<div class="detail-stat"><span class="label">📥 Speed</span><span class="value">' + esc(data.download_speed || '0') + ' KB/s</span></div>';
+    html += '<div class="detail-stat"><span class="label">📥 Queue</span><span class="value">' + (data.queue_count || 0) + ' — ' + esc(data.queue_size || '0 B') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📥 Status</span><span class="value">' + esc(data.status || '—') + '</span></div>';
+  } else if (type === 'nzbget') {
+    html += '<div class="detail-stat"><span class="label">📥 Speed</span><span class="value">' + _fmtSpeed(data.download_speed) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📥 Remaining</span><span class="value">' + (data.remaining_size || 0) + ' MB</span></div>';
+  } else if (type === 'gitea') {
+    html += '<div class="detail-stat"><span class="label">👤 User</span><span class="value">' + esc(data.full_name || data.username || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📁 Repos</span><span class="value">' + (data.repos || 0) + '</span></div>';
+  } else if (type === 'gitlab') {
+    html += '<div class="detail-stat"><span class="label">👤 User</span><span class="value">' + esc(data.name || data.username || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📁 Projects</span><span class="value">' + (data.projects || 0) + '</span></div>';
+  } else if (type === 'immich') {
+    html += '<div class="detail-stat"><span class="label">📸 Photos</span><span class="value">' + _fmt(data.photos) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🎥 Videos</span><span class="value">' + _fmt(data.videos) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">💾 Usage</span><span class="value">' + (data.usage || 0) + ' GB</span></div>';
+  } else if (type === 'paperless') {
+    html += '<div class="detail-stat"><span class="label">📄 Documents</span><span class="value">' + _fmt(data.documents) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">👤 Correspondents</span><span class="value">' + _fmt(data.correspondents) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🏷️ Tags</span><span class="value">' + _fmt(data.tags) + '</span></div>';
+  } else if (type === 'freshrss') {
+    html += '<div class="detail-stat"><span class="label">📰 Subscriptions</span><span class="value">' + (data.subscriptions || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📬 Unread</span><span class="value">' + _fmt(data.unread) + '</span></div>';
+  } else if (type === 'synology') {
+    html += '<div class="detail-stat"><span class="label">💾 Model</span><span class="value">' + esc(data.model || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🖥️ Hostname</span><span class="value">' + esc(data.hostname || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">💾 Volumes</span><span class="value">' + (data.volumes || 0) + '</span></div>';
+  } else if (type === 'prometheus') {
+    html += '<div class="detail-stat"><span class="label">📡 Targets</span><span class="value">' + (data.targets_total || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">✅ Up</span><span class="value">' + (data.targets_up || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">❌ Down</span><span class="value">' + (data.targets_down || 0) + '</span></div>';
+  } else {
+    html += '<div class="empty">No details available for this integration type.</div>';
   }
   return html;
+}
+
+function _fmt(n) {
+  if (n === undefined || n === null) return '—';
+  return Number(n).toLocaleString();
+}
+
+function _fmtSpeed(bytes) {
+  if (!bytes || bytes === 0) return '0 B/s';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+  let i = 0;
+  let b = parseFloat(bytes);
+  while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+  return b.toFixed(1) + ' ' + units[i];
 }
 
 function renderWidgets() {

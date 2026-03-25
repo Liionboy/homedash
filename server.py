@@ -319,27 +319,256 @@ INTEGRATION_TYPES = {
             "token": {"label": "JWT Token", "type": "password", "required": True},
         },
     },
+    "pihole": {
+        "name": "Pi-hole",
+        "icon": "🛡️",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key / Password", "type": "password", "required": False},
+            "version": {"label": "Version (5 or 6)", "type": "text", "required": False, "default": "5"},
+        },
+    },
+    "sonarr": {
+        "name": "Sonarr",
+        "icon": "📺",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "radarr": {
+        "name": "Radarr",
+        "icon": "🎬",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "lidarr": {
+        "name": "Lidarr",
+        "icon": "🎵",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "prowlarr": {
+        "name": "Prowlarr",
+        "icon": "🔍",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "bazarr": {
+        "name": "Bazarr",
+        "icon": "📝",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "qbittorrent": {
+        "name": "qBittorrent",
+        "icon": "📥",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "transmission": {
+        "name": "Transmission",
+        "icon": "📥",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": False},
+            "password": {"label": "Password", "type": "password", "required": False},
+        },
+    },
+    "deluge": {
+        "name": "Deluge",
+        "icon": "📥",
+        "auth_type": "basic",
+        "fields": {
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "jellyfin": {
+        "name": "Jellyfin",
+        "icon": "🎬",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "emby": {
+        "name": "Emby",
+        "icon": "🎬",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "proxmox": {
+        "name": "Proxmox",
+        "icon": "🖥️",
+        "auth_type": "token",
+        "fields": {
+            "api_token": {"label": "API Token (user=secret)", "type": "password", "required": True},
+        },
+    },
+    "tailscale": {
+        "name": "Tailscale",
+        "icon": "🔒",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Key", "type": "password", "required": True},
+            "tailnet": {"label": "Tailnet (org.github)", "type": "text", "required": True},
+        },
+    },
+    "uptimekuma": {
+        "name": "Uptime Kuma",
+        "icon": "📡",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "nextcloud": {
+        "name": "Nextcloud",
+        "icon": "☁️",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "App Password", "type": "password", "required": True},
+        },
+    },
+    "adguard": {
+        "name": "AdGuard Home",
+        "icon": "🛡️",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": False},
+            "password": {"label": "Password", "type": "password", "required": False},
+        },
+    },
+    "sabnzbd": {
+        "name": "SABnzbd",
+        "icon": "📦",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "nzbget": {
+        "name": "NZBGet",
+        "icon": "📦",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "gitea": {
+        "name": "Gitea",
+        "icon": "🔧",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "Access Token", "type": "password", "required": True},
+        },
+    },
+    "gitlab": {
+        "name": "GitLab",
+        "icon": "🦊",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "Personal Access Token", "type": "password", "required": True},
+        },
+    },
+    "immich": {
+        "name": "Immich",
+        "icon": "📸",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "paperless": {
+        "name": "Paperless-ngx",
+        "icon": "📄",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Token", "type": "password", "required": True},
+        },
+    },
+    "freshrss": {
+        "name": "FreshRSS",
+        "icon": "📰",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Password / Token", "type": "password", "required": True},
+            "username": {"label": "Username", "type": "text", "required": True},
+        },
+    },
+    "synology": {
+        "name": "Synology",
+        "icon": "💾",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "prometheus": {
+        "name": "Prometheus",
+        "icon": "📈",
+        "auth_type": "none",
+        "fields": {},
+    },
 }
 
 async def fetch_integration_data(itype: str, credentials: dict, base_url: str, config: dict = None) -> dict:
     """Fetch live data from a service integration."""
     config = config or {}
     try:
-        if itype == "homeassistant":
-            return await _fetch_homeassistant(credentials, base_url)
-        elif itype == "unifi":
-            return await _fetch_unifi(credentials, base_url, config)
-        elif itype == "plex":
-            return await _fetch_plex(credentials, base_url)
-        elif itype == "grafana":
-            return await _fetch_grafana(credentials, base_url)
-        elif itype == "portainer":
-            return await _fetch_portainer(credentials, base_url)
+        fetchers = {
+            "homeassistant": _fetch_homeassistant,
+            "unifi": _fetch_unifi,
+            "plex": _fetch_plex,
+            "grafana": _fetch_grafana,
+            "portainer": _fetch_portainer,
+            "pihole": _fetch_pihole,
+            "sonarr": _fetch_sonarr_radarr,
+            "radarr": _fetch_sonarr_radarr,
+            "lidarr": _fetch_sonarr_radarr,
+            "prowlarr": _fetch_prowlarr,
+            "bazarr": _fetch_bazarr,
+            "qbittorrent": _fetch_qbittorrent,
+            "transmission": _fetch_transmission,
+            "deluge": _fetch_deluge,
+            "jellyfin": _fetch_jellyfin,
+            "emby": _fetch_jellyfin,
+            "proxmox": _fetch_proxmox,
+            "tailscale": _fetch_tailscale,
+            "uptimekuma": _fetch_uptimekuma,
+            "nextcloud": _fetch_nextcloud,
+            "adguard": _fetch_adguard,
+            "sabnzbd": _fetch_sabnzbd,
+            "nzbget": _fetch_nzbget,
+            "gitea": _fetch_gitea,
+            "gitlab": _fetch_gitlab,
+            "immich": _fetch_immich,
+            "paperless": _fetch_paperless,
+            "freshrss": _fetch_freshrss,
+            "synology": _fetch_synology,
+            "prometheus": _fetch_prometheus,
+        }
+        if itype in fetchers:
+            return await fetchers[itype](credentials, base_url, config)
     except Exception as e:
         return {"error": str(e)[:200]}
     return {"error": "Unknown integration type"}
 
-async def _fetch_homeassistant(creds: dict, base_url: str) -> dict:
+async def _fetch_homeassistant(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
@@ -372,7 +601,7 @@ async def _fetch_homeassistant(creds: dict, base_url: str) -> dict:
             "safe_mode": config_data.get("safe_mode", False),
         }
 
-async def _fetch_unifi(creds: dict, base_url: str, config: dict) -> dict:
+async def _fetch_unifi(creds, base_url, config={}) -> dict:
     username = creds.get("username", "")
     password = creds.get("password", "")
     site = config.get("site", "default")
@@ -416,7 +645,7 @@ async def _fetch_unifi(creds: dict, base_url: str, config: dict) -> dict:
             "health": [{"subsystem": h.get("subsystem"), "status": h.get("status")} for h in health],
         }
 
-async def _fetch_plex(creds: dict, base_url: str) -> dict:
+async def _fetch_plex(creds, base_url, config={}) -> dict:
     token = creds.get("token", "")
     headers = {"X-Plex-Token": token, "Accept": "application/json"}
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
@@ -451,7 +680,7 @@ async def _fetch_plex(creds: dict, base_url: str) -> dict:
             **server_info,
         }
 
-async def _fetch_grafana(creds: dict, base_url: str) -> dict:
+async def _fetch_grafana(creds, base_url, config={}) -> dict:
     api_key = creds.get("api_key", "")
     headers = {"Authorization": f"Bearer {api_key}"}
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
@@ -471,7 +700,7 @@ async def _fetch_grafana(creds: dict, base_url: str) -> dict:
             "dashboards": dashboards,
         }
 
-async def _fetch_portainer(creds: dict, base_url: str) -> dict:
+async def _fetch_portainer(creds, base_url, config={}) -> dict:
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
@@ -495,6 +724,445 @@ async def _fetch_portainer(creds: dict, base_url: str) -> dict:
             "containers_running": running,
             "containers_stopped": len(containers) - running,
         }
+
+async def _fetch_pihole(creds, base_url, config={}):
+    version = int(config.get("version", creds.get("version", "5")))
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        if version >= 6:
+            # Pi-hole v6
+            key = creds.get("api_key", "")
+            headers = {}
+            if key:
+                login = await client.post(f"{base_url}/api/auth", json={"password": key})
+                if login.status_code == 200:
+                    sid = login.json().get("session", {}).get("sid")
+                    if sid:
+                        headers["X-FTL-SID"] = sid
+            r = await client.get(f"{base_url}/api/stats/summary", headers=headers)
+            if r.status_code != 200:
+                return {"error": f"Pi-hole v6 API error: {r.status_code}"}
+            data = r.json()
+            return {
+                "dns_queries_today": data.get("queries", {}).get("total", 0),
+                "ads_blocked_today": data.get("queries", {}).get("blocked", 0),
+                "ads_percentage_today": round(data.get("queries", {}).get("percent_blocked", 0), 2),
+                "domains_being_blocked": data.get("gravity", {}).get("domains_being_blocked", 0),
+                "version": "v6",
+            }
+        else:
+            # Pi-hole v5
+            r = await client.get(f"{base_url}/admin/api.php?summaryRaw")
+            if r.status_code != 200:
+                return {"error": f"Pi-hole API error: {r.status_code}"}
+            data = r.json()
+            return {
+                "dns_queries_today": int(data.get("dns_queries_today", 0)),
+                "ads_blocked_today": int(data.get("ads_blocked_today", 0)),
+                "ads_percentage_today": round(float(data.get("ads_percentage_today", 0)), 2),
+                "domains_being_blocked": int(data.get("domains_being_blocked", 0)),
+                "version": "v5",
+            }
+
+async def _fetch_sonarr_radarr(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Api-Key": api_key}
+    is_series = "sonarr" in base_url.lower() or config.get("type") == "sonarr"
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        if is_series:
+            r = await client.get(f"{base_url}/api/v3/series", headers=headers)
+            items = r.json() if r.status_code == 200 else []
+            rq = await client.get(f"{base_url}/api/v3/queue", headers=headers)
+            queue = rq.json() if rq.status_code == 200 else {}
+            rw = await client.get(f"{base_url}/api/v3/wanted/missing", headers=headers)
+            wanted = rw.json() if rw.status_code == 200 else {}
+            return {
+                "total": len(items),
+                "monitored": sum(1 for s in items if s.get("monitored")),
+                "queue": queue.get("totalRecords", 0),
+                "wanted": wanted.get("totalRecords", 0),
+                "type": "series",
+            }
+        else:
+            r = await client.get(f"{base_url}/api/v3/movie", headers=headers)
+            items = r.json() if r.status_code == 200 else []
+            rq = await client.get(f"{base_url}/api/v3/queue", headers=headers)
+            queue = rq.json() if rq.status_code == 200 else {}
+            rw = await client.get(f"{base_url}/api/v3/wanted/missing", headers=headers)
+            wanted = rw.json() if rw.status_code == 200 else {}
+            return {
+                "total": len(items),
+                "monitored": sum(1 for m in items if m.get("monitored")),
+                "queue": queue.get("totalRecords", 0),
+                "wanted": wanted.get("totalRecords", 0),
+                "type": "movies",
+            }
+
+async def _fetch_prowlarr(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Api-Key": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        ri = await client.get(f"{base_url}/api/v1/indexer", headers=headers)
+        indexers = ri.json() if ri.status_code == 200 else []
+        rh = await client.get(f"{base_url}/api/v1/indexerstatus", headers=headers)
+        statuses = rh.json() if rh.status_code == 200 else []
+        return {
+            "indexers": len(indexers),
+            "enabled": sum(1 for i in indexers if i.get("enable")),
+            "statuses": len(statuses),
+        }
+
+async def _fetch_bazarr(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-API-KEY": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/series", headers=headers)
+        series = r.json().get("data", []) if r.status_code == 200 else []
+        rm = await client.get(f"{base_url}/api/movies", headers=headers)
+        movies = rm.json().get("data", []) if rm.status_code == 200 else []
+        return {
+            "series": len(series),
+            "movies": len(movies),
+            "total": len(series) + len(movies),
+        }
+
+async def _fetch_qbittorrent(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        # Login
+        await client.post(f"{base_url}/api/v2/auth/login",
+                          data={"username": creds.get("username", ""), "password": creds.get("password", "")},
+                          headers={"Content-Type": "application/x-www-form-urlencoded"})
+        # Transfer info
+        rt = await client.get(f"{base_url}/api/v2/transfer/info")
+        transfer = rt.json() if rt.status_code == 200 else {}
+        # Torrent count
+        rc = await client.get(f"{base_url}/api/v2/torrents/info?filter=all")
+        all_torrents = rc.json() if rc.status_code == 200 else []
+        rco = await client.get(f"{base_url}/api/v2/torrents/info?filter=completed")
+        completed = rco.json() if rco.status_code == 200 else []
+        return {
+            "download_speed": transfer.get("dl_info_speed", 0),
+            "upload_speed": transfer.get("up_info_speed", 0),
+            "total_torrents": len(all_torrents),
+            "completed": len(completed),
+            "leeching": len(all_torrents) - len(completed),
+            "downloaded": transfer.get("dl_info_data", 0),
+            "uploaded": transfer.get("up_info_data", 0),
+        }
+
+async def _fetch_transmission(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True,
+                                 auth=(creds.get("username", ""), creds.get("password", ""))) as client:
+        r = await client.post(f"{base_url}/transmission/rpc",
+                              json={"method": "session-stats"},
+                              headers={"Content-Type": "application/json"})
+        if r.status_code == 409:
+            sid = r.headers.get("X-Transmission-Session-Id", "")
+            r = await client.post(f"{base_url}/transmission/rpc",
+                                  json={"method": "session-stats"},
+                                  headers={"Content-Type": "application/json", "X-Transmission-Session-Id": sid})
+        data = r.json().get("arguments", {}) if r.status_code == 200 else {}
+        return {
+            "download_speed": data.get("downloadSpeed", 0),
+            "upload_speed": data.get("uploadSpeed", 0),
+            "active_torrents": data.get("activeTorrentCount", 0),
+            "torrent_count": data.get("torrentCount", 0),
+            "downloaded": data.get("currentStats", {}).get("downloadedBytes", 0),
+            "uploaded": data.get("currentStats", {}).get("uploadedBytes", 0),
+        }
+
+async def _fetch_deluge(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.post(f"{base_url}/json", json={"method": "auth.login", "params": [creds.get("password", "")], "id": 1})
+        if r.status_code == 200 and r.json().get("result"):
+            r2 = await client.post(f"{base_url}/json", json={"method": "web.update_ui", "params": [["state", "download_payload_rate", "upload_payload_rate", "num_connections"], {}], "id": 2})
+            data = r2.json().get("result", {}) if r2.status_code == 200 else {}
+            torrents = data.get("torrents", {})
+            return {
+                "download_speed": data.get("download_payload_rate", 0),
+                "upload_speed": data.get("upload_payload_rate", 0),
+                "total_torrents": len(torrents),
+                "connected": data.get("connected", False),
+            }
+        return {"error": "Login failed"}
+
+async def _fetch_jellyfin(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"Authorization": f'MediaBrowser Token="{api_key}", Client="Homedash", Device="Homedash", DeviceId="homedash", Version="1.0.0"'}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        rs = await client.get(f"{base_url}/System/Info", headers=headers)
+        info = rs.json() if rs.status_code == 200 else {}
+        ru = await client.get(f"{base_url}/Users", headers=headers)
+        users = ru.json() if ru.status_code == 200 else []
+        # Count items by type
+        items_count = {}
+        for lib_type in ["Movie", "Series", "Audio", "Photo"]:
+            ri = await client.get(f"{base_url}/Items?IncludeItemTypes={lib_type}&Limit=0", headers=headers)
+            if ri.status_code == 200:
+                items_count[lib_type.lower()] = ri.json().get("TotalRecordCount", 0)
+        # Active sessions
+        rse = await client.get(f"{base_url}/Sessions?ActiveWithinSeconds=300", headers=headers)
+        sessions = rse.json() if rse.status_code == 200 else []
+        return {
+            "server_name": info.get("ServerName", "—"),
+            "version": info.get("Version", "—"),
+            "users": len(users),
+            "active_sessions": len(sessions),
+            "movies": items_count.get("movie", 0),
+            "series": items_count.get("series", 0),
+            "music": items_count.get("audio", 0),
+            "photos": items_count.get("photo", 0),
+        }
+
+async def _fetch_proxmox(creds, base_url, config={}):
+    token_parts = creds.get("api_token", "").split("=", 1)
+    if len(token_parts) != 2:
+        return {"error": "Invalid token format. Use: user@realm!tokenid=secret"}
+    user, secret = token_parts
+    headers = {"Authorization": f"PVEAPIToken={user}={secret}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        rn = await client.get(f"{base_url}/api2/json/nodes", headers=headers)
+        nodes = rn.json().get("data", []) if rn.status_code == 200 else []
+        vms = []
+        for node in nodes:
+            rv = await client.get(f"{base_url}/api2/json/nodes/{node['node']}/qemu", headers=headers)
+            if rv.status_code == 200:
+                vms.extend(rv.json().get("data", []))
+        running = sum(1 for v in vms if v.get("status") == "running")
+        return {
+            "nodes": len(nodes),
+            "node_names": [n["node"] for n in nodes],
+            "vms_total": len(vms),
+            "vms_running": running,
+            "vms_stopped": len(vms) - running,
+        }
+
+async def _fetch_tailscale(creds, base_url, config={}):
+    token = creds.get("token", "")
+    tailnet = creds.get("tailnet", config.get("tailnet", ""))
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"https://api.tailscale.com/api/v2/tailnet/{tailnet}/devices", headers=headers)
+        if r.status_code != 200:
+            return {"error": f"Tailscale API error: {r.status_code}"}
+        devices = r.json().get("devices", [])
+        online = sum(1 for d in devices if d.get("online"))
+        return {
+            "devices": len(devices),
+            "online": online,
+            "offline": len(devices) - online,
+            "tailnet": tailnet,
+        }
+
+async def _fetch_uptimekuma(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/summary")
+        if r.status_code != 200:
+            return {"error": f"Uptime Kuma API error: {r.status_code}"}
+        data = r.json()
+        hearts = data.get("heartbeatList", {})
+        monitors = data.get("uptimeList", {})
+        total = 0
+        up = 0
+        for mid, beats in hearts.items():
+            if beats:
+                total += 1
+                if beats[-1].get("status") == 1:
+                    up += 1
+        return {
+            "monitors": total,
+            "up": up,
+            "down": total - up,
+            "heartbeats": len(hearts),
+        }
+
+async def _fetch_nextcloud(creds, base_url, config={}):
+    import base64
+    auth = base64.b64encode(f"{creds.get('username', '')}:{creds.get('password', '')}".encode()).decode()
+    headers = {"Authorization": f"Basic {auth}", "OCS-APIRequest": "true"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/ocs/v2.php/cloud/users/{creds.get('username', '')}?format=json", headers=headers)
+        if r.status_code == 200:
+            userdata = r.json().get("ocs", {}).get("data", {})
+        else:
+            userdata = {}
+        rs = await client.get(f"{base_url}/status.php")
+        status = rs.json() if rs.status_code == 200 else {}
+        # Storage
+        ra = await client.get(f"{base_url}/ocs/v1.php/apps/files/api/v1/local?format=json", headers=headers)
+        return {
+            "version": status.get("version", "—"),
+            "edition": status.get("edition", "—"),
+            "username": userdata.get("id", "—"),
+            "display_name": userdata.get("displayname", "—"),
+            "email": userdata.get("email", "—"),
+            "storage_used": userdata.get("quota", {}).get("used", 0),
+            "storage_total": userdata.get("quota", {}).get("quota", 0),
+        }
+
+async def _fetch_adguard(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        auth = (creds.get("username", ""), creds.get("password", "")) if creds.get("username") else None
+        rs = await client.get(f"{base_url}/control/status", auth=auth)
+        status = rs.json() if rs.status_code == 200 else {}
+        rsq = await client.get(f"{base_url}/control/stats", auth=auth)
+        stats = rsq.json() if rsq.status_code == 200 else {}
+        return {
+            "dns_queries": stats.get("num_dns_queries", 0),
+            "blocked": stats.get("num_blocked_filtering", 0),
+            "blocked_pct": round(stats.get("num_blocked_filtering", 0) / max(stats.get("num_dns_queries", 1), 1) * 100, 2),
+            "safe_browsing": stats.get("num_replaced_safebrowsing", 0),
+            "parental": stats.get("num_replaced_parental", 0),
+            "version": status.get("version", "—"),
+            "protection_enabled": status.get("protection_enabled", False),
+        }
+
+async def _fetch_sabnzbd(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/sabnzbd/api?mode=queue&output=json&apikey={api_key}")
+        queue = r.json().get("queue", {}) if r.status_code == 200 else {}
+        rh = await client.get(f"{base_url}/sabnzbd/api?mode=history&output=json&limit=0&apikey={api_key}")
+        history = rh.json().get("history", {}) if rh.status_code == 200 else {}
+        return {
+            "download_speed": queue.get("kbpersec", "0"),
+            "queue_count": int(queue.get("noofslots_total", 0)),
+            "queue_size": queue.get("size", "0 B"),
+            "history_total": int(history.get("noofslots", 0)),
+            "status": queue.get("status", "—"),
+            "paused": queue.get("paused", False),
+        }
+
+async def _fetch_nzbget(creds, base_url, config={}):
+    import base64
+    auth = base64.b64encode(f"{creds.get('username', '')}:{creds.get('password', '')}".encode()).decode()
+    headers = {"Authorization": f"Basic {auth}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/jsonrpc/status", headers=headers)
+        status = r.json().get("result", {}) if r.status_code == 200 else {}
+        return {
+            "download_speed": status.get("DownloadRate", 0),
+            "download_paused": status.get("DownloadPaused", False),
+            "remaining_size": status.get("RemainingSizeMB", 0),
+            "downloaded_size": status.get("DownloadedSizeMB", 0),
+            "article_cache": status.get("ArticleCacheMB", 0),
+        }
+
+async def _fetch_gitea(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"token {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        ru = await client.get(f"{base_url}/api/v1/user", headers=headers)
+        user = ru.json() if ru.status_code == 200 else {}
+        rr = await client.get(f"{base_url}/api/v1/repos/search?limit=1", headers=headers)
+        repo_count = rr.json().get("ok", 0) if rr.status_code == 200 else 0
+        # Get actual count from paginate
+        ra = await client.get(f"{base_url}/api/v1/repos/search?limit=5000", headers=headers)
+        repos = ra.json().get("data", []) if ra.status_code == 200 else []
+        return {
+            "username": user.get("login", "—"),
+            "full_name": user.get("full_name", "—"),
+            "repos": len(repos),
+        }
+
+async def _fetch_gitlab(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"PRIVATE-TOKEN": token}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        ru = await client.get(f"{base_url}/api/v4/user", headers=headers)
+        user = ru.json() if ru.status_code == 200 else {}
+        rp = await client.get(f"{base_url}/api/v4/projects?per_page=1&statistics=true", headers=headers)
+        projects = rp.json() if rp.status_code == 200 else []
+        return {
+            "username": user.get("username", "—"),
+            "name": user.get("name", "—"),
+            "projects": len(projects),
+        }
+
+async def _fetch_immich(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"x-api-key": token}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        rs = await client.get(f"{base_url}/api/server-info/statistics", headers=headers)
+        stats = rs.json() if rs.status_code == 200 else {}
+        rv = await client.get(f"{base_url}/api/server-info/version", headers=headers)
+        version = rv.json() if rv.status_code == 200 else {}
+        return {
+            "photos": stats.get("photos", 0),
+            "videos": stats.get("videos", 0),
+            "total": stats.get("total", 0),
+            "usage": round(stats.get("usage", 0) / (1024**3), 2) if stats.get("usage") else 0,
+            "version": version.get("major", "—"),
+        }
+
+async def _fetch_paperless(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Token {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        rd = await client.get(f"{base_url}/api/documents/?page_size=1", headers=headers)
+        doc_count = rd.json().get("count", 0) if rd.status_code == 200 else 0
+        rc = await client.get(f"{base_url}/api/correspondents/?page_size=1", headers=headers)
+        corr_count = rc.json().get("count", 0) if rc.status_code == 200 else 0
+        rt = await client.get(f"{base_url}/api/tags/?page_size=1", headers=headers)
+        tag_count = rt.json().get("count", 0) if rt.status_code == 200 else 0
+        return {
+            "documents": doc_count,
+            "correspondents": corr_count,
+            "tags": tag_count,
+        }
+
+async def _fetch_freshrss(creds, base_url, config={}):
+    import base64
+    auth = base64.b64encode(f"{creds.get('username', '')}:{creds.get('api_key', '')}".encode()).decode()
+    headers = {"Authorization": f"Basic {auth}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/greader.php/reader/api/0/subscription/list?output=json", headers=headers)
+        subs = r.json().get("subscriptions", []) if r.status_code == 200 else []
+        ru = await client.get(f"{base_url}/api/greader.php/reader/api/0/unread-count?output=json", headers=headers)
+        unread_data = ru.json() if ru.status_code == 200 else {}
+        unread = 0
+        for item in unread_data.get("unreadcounts", []):
+            unread += item.get("count", 0)
+        return {
+            "subscriptions": len(subs),
+            "unread": unread,
+        }
+
+async def _fetch_synology(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        # Login
+        lr = await client.get(f"{base_url}/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=login&account={creds.get('username', '')}&passwd={creds.get('password', '')}&session=FileStation&format=cookie")
+        if lr.status_code == 200 and lr.json().get("success"):
+            sid = lr.json().get("data", {}).get("sid", "")
+            # System info
+            sr = await client.get(f"{base_url}/webapi/entry.cgi?api=SYNO.Core.System&version=1&method=info&_sid={sid}")
+            sysinfo = sr.json().get("data", {}) if sr.status_code == 200 else {}
+            # Storage
+            st = await client.get(f"{base_url}/webapi/entry.cgi?api=SYNO.Storage.CGI.Storage&version=1&method=load_info&_sid={sid}")
+            storage = st.json().get("data", {}) if st.status_code == 200 else {}
+            return {
+                "model": sysinfo.get("model", "—"),
+                "version": sysinfo.get("firmware_ver", "—"),
+                "hostname": sysinfo.get("hostname", "—"),
+                "uptime": sysinfo.get("up_time", "—"),
+                "volumes": len(storage.get("volumes", [])),
+            }
+        return {"error": "Synology login failed"}
+
+async def _fetch_prometheus(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        # Try PromQL API
+        r = await client.get(f"{base_url}/api/v1/query?query=up")
+        if r.status_code == 200:
+            data = r.json().get("data", {}).get("result", [])
+            up_count = sum(1 for item in data if item.get("value", [None, "0"])[1] == "1")
+            return {
+                "targets_total": len(data),
+                "targets_up": up_count,
+                "targets_down": len(data) - up_count,
+            }
+        # Fallback: try /-/healthy
+        rh = await client.get(f"{base_url}/-/healthy")
+        return {"status": "healthy" if rh.status_code == 200 else "unhealthy"}
 
 # ─── Monitor Loop ──────────────────────────────────────────────────
 
