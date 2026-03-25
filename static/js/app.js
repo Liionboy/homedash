@@ -339,6 +339,44 @@ function getIntStatsHtml(type, d) {
     case 'gotify':
       return '🔔 ' + (d.messages_total || 0) + ' messages' +
         (d.latest_title ? ' · ' + esc(d.latest_title) : '');
+    case 'netdata':
+      return '📊 v' + esc(d.version || '') +
+        (d.critical_alarms ? ' · 🔴 ' + d.critical_alarms + ' critical' : '') +
+        (d.warning_alarms ? ' · 🟡 ' + d.warning_alarms + ' warnings' : '') +
+        (!d.critical_alarms && !d.warning_alarms ? ' · ✅ All OK' : '');
+    case 'traefik':
+      return '🔀 ' + (d.http_routers || 0) + ' routers · ' + (d.http_services || 0) + ' services';
+    case 'navidrome':
+      return '🎵 ' + (d.folders || 0) + ' folders' +
+        (d.scanning ? ' · 🔄 Scanning' : '');
+    case 'audiobookshelf':
+      return '📖 ' + (d.total_books || 0) + ' books · ' + (d.libraries || 0) + ' libraries';
+    case 'mealie':
+      return '🍳 ' + (d.categories || 0) + ' categories · ' + (d.tags || 0) + ' tags';
+    case 'node-red':
+      return '🔴 ' + (d.flows || 0) + ' flows';
+    case 'duplicati':
+      return '💾 v' + esc(d.version || '') +
+        (d.scheduler_state ? ' · ' + esc(d.scheduler_state) : '') +
+        (d.proposed_schedule ? ' · ' + d.proposed_schedule + ' scheduled' : '');
+    case 'kavita':
+      return '📚 ' + (d.libraries || 0) + ' libraries';
+    case 'readarr':
+      return '📚 ' + (d.authors || 0) + ' authors · ' + (d.books || 0) + ' books' +
+        (d.missing ? ' · ' + d.missing + ' missing' : '');
+    case 'homebridge':
+      return '🏠 ' + (d.accessories || 0) + ' accessories';
+    case 'octoprint':
+      return '🖨️ ' + esc(d.state || '') + (d.version ? ' · v' + esc(d.version) : '');
+    case 'jellyseerr':
+      return '🎬 ' + (d.requests_total || 0) + ' requests' +
+        (d.version ? ' · v' + esc(d.version) : '');
+    case 'miniflux':
+      return '📰 ' + (d.feeds || 0) + ' feeds · ' + (d.unread || 0) + ' unread';
+    case 'stirling-pdf':
+      return '📄 ' + esc(d.status || 'online');
+    case 'watchtower':
+      return '👁️ Monitoring active';
     default:
       return '';
   }
@@ -667,6 +705,49 @@ function renderIntegrationDetails(type, data) {
   } else if (type === 'gotify') {
     html += '<div class="detail-stat"><span class="label">🔔 Messages</span><span class="value">' + (data.messages_total || 0) + '</span></div>';
     if (data.latest_title) html += '<div class="detail-stat"><span class="label">📬 Latest</span><span class="value">' + esc(data.latest_title) + '</span></div>';
+  } else if (type === 'netdata') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🖥️ OS</span><span class="value">' + esc(data.os_name || '') + ' ' + esc(data.os_version || '') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">⚡ CPU Cores</span><span class="value">' + (data.cpu_cores || 0) + '</span></div>';
+    if (data.critical_alarms) html += '<div class="detail-stat"><span class="label">🔴 Critical</span><span class="value" style="color:var(--red)">' + data.critical_alarms + '</span></div>';
+    if (data.warning_alarms) html += '<div class="detail-stat"><span class="label">🟡 Warnings</span><span class="value" style="color:var(--yellow)">' + data.warning_alarms + '</span></div>';
+  } else if (type === 'traefik') {
+    html += '<div class="detail-stat"><span class="label">🔀 HTTP Routers</span><span class="value">' + (data.http_routers || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🎯 Services</span><span class="value">' + (data.http_services || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🛡️ Middlewares</span><span class="value">' + (data.http_middlewares || 0) + '</span></div>';
+  } else if (type === 'navidrome') {
+    html += '<div class="detail-stat"><span class="label">📁 Folders</span><span class="value">' + (data.folders || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🔄 Scanning</span><span class="value">' + (data.scanning ? 'Yes' : 'No') + '</span></div>';
+  } else if (type === 'audiobookshelf') {
+    html += '<div class="detail-stat"><span class="label">📚 Libraries</span><span class="value">' + (data.libraries || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📖 Books</span><span class="value">' + (data.total_books || 0) + '</span></div>';
+  } else if (type === 'mealie') {
+    html += '<div class="detail-stat"><span class="label">🏷️ Group</span><span class="value">' + esc(data.group_name || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📂 Categories</span><span class="value">' + (data.categories || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🏷️ Tags</span><span class="value">' + (data.tags || 0) + '</span></div>';
+  } else if (type === 'node-red') {
+    html += '<div class="detail-stat"><span class="label">🔴 Flows</span><span class="value">' + (data.flows || 0) + '</span></div>';
+  } else if (type === 'duplicati') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📅 Scheduler</span><span class="value">' + esc(data.scheduler_state || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📋 Scheduled</span><span class="value">' + (data.proposed_schedule || 0) + ' jobs</span></div>';
+  } else if (type === 'kavita') {
+    html += '<div class="detail-stat"><span class="label">📚 Libraries</span><span class="value">' + (data.libraries || 0) + '</span></div>';
+  } else if (type === 'readarr') {
+    html += '<div class="detail-stat"><span class="label">👤 Authors</span><span class="value">' + (data.authors || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📚 Books</span><span class="value">' + (data.books || 0) + '</span></div>';
+    if (data.missing) html += '<div class="detail-stat"><span class="label">❓ Missing</span><span class="value" style="color:var(--yellow)">' + data.missing + '</span></div>';
+  } else if (type === 'homebridge') {
+    html += '<div class="detail-stat"><span class="label">🏠 Accessories</span><span class="value">' + (data.accessories || 0) + '</span></div>';
+  } else if (type === 'octoprint') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🖨️ State</span><span class="value">' + esc(data.state || '—') + '</span></div>';
+  } else if (type === 'jellyseerr') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📋 Requests</span><span class="value">' + (data.requests_total || 0) + '</span></div>';
+  } else if (type === 'miniflux') {
+    html += '<div class="detail-stat"><span class="label">📰 Feeds</span><span class="value">' + (data.feeds || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📬 Unread</span><span class="value">' + (data.unread || 0) + '</span></div>';
   } else {
     html += '<div class="empty">No details available for this integration type.</div>';
   }

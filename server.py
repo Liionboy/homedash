@@ -572,6 +572,122 @@ INTEGRATION_TYPES = {
             "token": {"label": "Client Token", "type": "password", "required": True},
         },
     },
+    "netdata": {
+        "name": "Netdata",
+        "icon": "📊",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Token", "type": "password", "required": False},
+        },
+    },
+    "traefik": {
+        "name": "Traefik",
+        "icon": "🔀",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "navidrome": {
+        "name": "Navidrome",
+        "icon": "🎵",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "audiobookshelf": {
+        "name": "Audiobookshelf",
+        "icon": "📖",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Token", "type": "password", "required": True},
+        },
+    },
+    "mealie": {
+        "name": "Mealie",
+        "icon": "🍳",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Token", "type": "password", "required": True},
+        },
+    },
+    "node-red": {
+        "name": "Node-RED",
+        "icon": "🔴",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "Auth Token", "type": "password", "required": True},
+        },
+    },
+    "duplicati": {
+        "name": "Duplicati",
+        "icon": "💾",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "kavita": {
+        "name": "Kavita",
+        "icon": "📚",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "readarr": {
+        "name": "Readarr",
+        "icon": "📚",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "homebridge": {
+        "name": "Homebridge",
+        "icon": "🏠",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "octoprint": {
+        "name": "OctoPrint",
+        "icon": "🖨️",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "jellyseerr": {
+        "name": "Jellyseerr",
+        "icon": "🎬",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "miniflux": {
+        "name": "Miniflux",
+        "icon": "📰",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "stirling-pdf": {
+        "name": "Stirling PDF",
+        "icon": "📄",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "watchtower": {
+        "name": "Watchtower",
+        "icon": "👁️",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Token (optional)", "type": "password", "required": False},
+        },
+    },
 }
 
 async def fetch_integration_data(itype: str, credentials: dict, base_url: str, config: dict = None) -> dict:
@@ -615,6 +731,21 @@ async def fetch_integration_data(itype: str, credentials: dict, base_url: str, c
             "tautulli": _fetch_tautulli,
             "overseerr": _fetch_overseerr,
             "gotify": _fetch_gotify,
+            "netdata": _fetch_netdata,
+            "traefik": _fetch_traefik,
+            "navidrome": _fetch_navidrome,
+            "audiobookshelf": _fetch_audiobookshelf,
+            "mealie": _fetch_mealie,
+            "node-red": _fetch_node_red,
+            "duplicati": _fetch_duplicati,
+            "kavita": _fetch_kavita,
+            "readarr": _fetch_readarr,
+            "homebridge": _fetch_homebridge,
+            "octoprint": _fetch_octoprint,
+            "jellyseerr": _fetch_jellyseerr,
+            "miniflux": _fetch_miniflux,
+            "stirling-pdf": _fetch_stirling_pdf,
+            "watchtower": _fetch_watchtower,
         }
         if itype in fetchers:
             return await fetchers[itype](credentials, base_url, config)
@@ -1344,6 +1475,237 @@ async def _fetch_gotify(creds, base_url, config={}):
                 "latest_message": msgs[0].get("message", "")[:80] if msgs else "",
             }
         return {"error": f"Gotify API error: {r.status_code}"}
+
+async def _fetch_netdata(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"X-Auth-Token": token} if token else {}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/info", headers=headers)
+        if r.status_code == 200:
+            info = r.json()
+            # Get alarms
+            ra = await client.get(f"{base_url}/api/v1/alarms?active&status=CRITICAL", headers=headers)
+            critical = len(ra.json().get("alarms", {}).keys()) if ra.status_code == 200 else 0
+            rw = await client.get(f"{base_url}/api/v1/alarms?active&status=WARNING", headers=headers)
+            warnings = len(rw.json().get("alarms", {}).keys()) if rw.status_code == 200 else 0
+            return {
+                "version": info.get("version", "—"),
+                "os_name": info.get("os_name", "—"),
+                "os_version": info.get("os_version", "—"),
+                "cpu_cores": info.get("cpu_cores", 0),
+                "ram_total": info.get("ram_total", 0),
+                "critical_alarms": critical,
+                "warning_alarms": warnings,
+            }
+        return {"error": f"Netdata API error: {r.status_code}"}
+
+async def _fetch_traefik(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/overview")
+        if r.status_code == 200:
+            data = r.json()
+            return {
+                "http_routers": data.get("http", {}).get("routers", {}).get("total", 0),
+                "http_services": data.get("http", {}).get("services", {}).get("total", 0),
+                "http_middlewares": data.get("http", {}).get("middlewares", {}).get("total", 0),
+            }
+        return {"error": f"Traefik API error: {r.status_code}"}
+
+async def _fetch_navidrome(creds, base_url, config={}):
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/rest/getMusicFolders.view", params={
+            "u": username, "p": password, "v": "1.16.1", "c": "homedash", "f": "json"
+        })
+        if r.status_code == 200:
+            sub = r.json().get("subsonic-response", {})
+            if sub.get("status") == "ok":
+                # Get scan status
+                rs = await client.get(f"{base_url}/rest/getScanStatus.view", params={
+                    "u": username, "p": password, "v": "1.16.1", "c": "homedash", "f": "json"
+                })
+                scan = rs.json().get("subsonic-response", {}).get("scanStatus", {}) if rs.status_code == 200 else {}
+                return {
+                    "folders": len(sub.get("musicFolders", {}).get("musicFolder", [])),
+                    "scanning": scan.get("scanning", False),
+                    "last_scan": scan.get("lastScan", "—"),
+                }
+        return {"error": f"Navidrome API error: {r.status_code}"}
+
+async def _fetch_audiobookshelf(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/libraries", headers=headers)
+        if r.status_code == 200:
+            libs = r.json().get("libraries", [])
+            total_books = sum(lib.get("stats", {}).get("totalItems", 0) for lib in libs)
+            return {
+                "libraries": len(libs),
+                "total_books": total_books,
+                "library_names": [lib.get("name", "—") for lib in libs],
+            }
+        return {"error": f"Audiobookshelf API error: {r.status_code}"}
+
+async def _fetch_mealie(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/groups/self", headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            return {
+                "group_name": data.get("name", "—"),
+                "categories": len(data.get("categories", [])),
+                "tags": len(data.get("tags", [])),
+                "tools": len(data.get("tools", [])),
+            }
+        # Fallback: try about endpoint
+        ra = await client.get(f"{base_url}/api/about")
+        if ra.status_code == 200:
+            return {"version": ra.json().get("version", "—")}
+        return {"error": f"Mealie API error: {r.status_code}"}
+
+async def _fetch_node_red(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/flows", headers=headers)
+        if r.status_code == 200:
+            flows = r.json()
+            return {
+                "flows": len(flows) if isinstance(flows, list) else 0,
+            }
+        # Try /api/flows
+        r2 = await client.get(f"{base_url}/api/flows", headers=headers)
+        if r2.status_code == 200:
+            data = r2.json()
+            return {"flows": data.get("length", 0)}
+        return {"error": f"Node-RED API error: {r.status_code}"}
+
+async def _fetch_duplicati(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/serverstate")
+        if r.status_code == 200:
+            data = r.json()
+            return {
+                "version": data.get("ServerVersion", "—"),
+                "active_task": data.get("ActiveTask", "—") if data.get("ActiveTask") else "None",
+                "scheduler_state": data.get("SchedulerState", "—"),
+                "proposed_schedule": len(data.get("ProposedSchedule", [])),
+            }
+        return {"error": f"Duplicati API error: {r.status_code}"}
+
+async def _fetch_kavita(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/library/libraries", headers=headers)
+        if r.status_code == 200:
+            libs = r.json()
+            return {
+                "libraries": len(libs),
+                "library_names": [lib.get("name", "—") for lib in libs],
+            }
+        return {"error": f"Kavita API error: {r.status_code}"}
+
+async def _fetch_readarr(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Api-Key": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/author", headers=headers)
+        authors = r.json() if r.status_code == 200 else []
+        rb = await client.get(f"{base_url}/api/v1/book", headers=headers)
+        books = rb.json() if rb.status_code == 200 else []
+        return {
+            "authors": len(authors),
+            "books": len(books),
+            "missing": sum(1 for b in books if b.get("statistics", {}).get("bookFileCount", 0) == 0),
+        }
+
+async def _fetch_homebridge(creds, base_url, config={}):
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/auth/check")
+        if r.status_code == 200:
+            # Try accessories
+            ra = await client.get(f"{base_url}/api/accessories")
+            accessories = ra.json() if ra.status_code == 200 else []
+            return {
+                "accessories": len(accessories) if isinstance(accessories, list) else 0,
+            }
+        return {"error": f"Homebridge API error: {r.status_code}"}
+
+async def _fetch_octoprint(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Api-Key": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/version", headers=headers)
+        if r.status_code == 200:
+            ver = r.json()
+            rp = await client.get(f"{base_url}/api/printer?exclude=temperature", headers=headers)
+            state = "operational"
+            if rp.status_code == 200:
+                state = rp.json().get("state", {}).get("text", "operational")
+            return {
+                "version": ver.get("server", "—"),
+                "api_version": ver.get("api", "—"),
+                "state": state,
+            }
+        return {"error": f"OctoPrint API error: {r.status_code}"}
+
+async def _fetch_jellyseerr(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Api-Key": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/status", headers=headers)
+        if r.status_code == 200:
+            rr = await client.get(f"{base_url}/api/v1/request?take=0", headers=headers)
+            req_count = rr.json().get("pageInfo", {}).get("results", 0) if rr.status_code == 200 else 0
+            return {
+                "version": r.json().get("version", "—"),
+                "requests_total": req_count,
+            }
+        return {"error": f"Jellyseerr API error: {r.status_code}"}
+
+async def _fetch_miniflux(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Auth-Token": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/v1/feeds/counters", headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            ru = await client.get(f"{base_url}/v1/feeds/counters", headers=headers, params={"status": "unread"})
+            unread = ru.json().get("unread", 0) if ru.status_code == 200 else 0
+            return {
+                "feeds": len(data.get("reads", {})) + len(data.get("unreads", {})),
+                "unread": unread,
+            }
+        return {"error": f"Miniflux API error: {r.status_code}"}
+
+async def _fetch_stirling_pdf(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/info/status")
+        if r.status_code == 200:
+            return {"status": "operational", **r.json()}
+        # Fallback
+        r2 = await client.get(f"{base_url}")
+        return {"status": "online" if r2.status_code == 200 else "offline"}
+
+async def _fetch_watchtower(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/v1/update", headers=headers)
+        if r.status_code == 200:
+            return {"last_scan": r.text[:50]}
+        # Try metrics
+        rm = await client.get(f"{base_url}/v1/metrics", headers=headers)
+        if rm.status_code == 200:
+            return {"metrics_available": True}
+        return {"status": "running"}
 
 # ─── Monitor Loop ──────────────────────────────────────────────────
 
