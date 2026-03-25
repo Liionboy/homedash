@@ -711,6 +711,7 @@ async def _fetch_unifi(creds, base_url, config={}) -> dict:
 
 async def _fetch_plex(creds, base_url, config={}) -> dict:
     token = creds.get("token", "")
+    base_url = base_url.rstrip("/")
     headers = {"X-Plex-Token": token, "Accept": "application/json"}
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/library/sections", headers=headers)

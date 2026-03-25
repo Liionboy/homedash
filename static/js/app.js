@@ -292,8 +292,10 @@ function getIntStatsHtml(type, d) {
       return '📊 ' + (d.dashboards || 0) + ' dashboards' +
         (d.health === 'ok' ? ' · ✅ Healthy' : '');
     case 'pihole': case 'adguard':
-      const pct = d.queries_today ? Math.round((d.blocked_today || 0) / d.queries_today * 100) : 0;
-      return '🛡️ ' + (d.queries_today || 0) + ' queries · ' + pct + '% blocked' +
+      const queries = d.dns_queries_today || d.queries_today || 0;
+      const blocked = d.ads_blocked_today || d.blocked_today || 0;
+      const pct2 = queries ? Math.round(blocked / queries * 100) : 0;
+      return '🛡️ ' + queries + ' queries · ' + pct2 + '% blocked' +
         (d.status === 'enabled' ? ' · ✅ Active' : ' · ⏸️ Disabled');
     case 'sonarr': case 'radarr': case 'lidarr':
       return '📺 ' + (d.series_count || d.movies_count || d.artist_count || 0) + ' items' +
