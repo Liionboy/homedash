@@ -722,10 +722,18 @@ async def _fetch_plex(creds, base_url, config={}) -> dict:
 
         libraries = []
         for s in sections:
+            key = s.get("key")
+            count = s.get("childCount") or s.get("totalSize", 0)
+            # Fetch real count if not provided
+            if not count and key:
+                rc = await client.get(f"{base_url}/library/sections/{key}/all", headers=headers,
+                                      params={"X-Plex-Container-Start": 0, "X-Plex-Container-Size": 0})
+                if rc.status_code == 200:
+                    count = rc.json().get("MediaContainer", {}).get("totalSize", 0)
             libraries.append({
                 "title": s.get("title", "—"),
                 "type": s.get("type", "—"),
-                "count": s.get("childCount", 0),
+                "count": count or 0,
             })
 
         # Server info
