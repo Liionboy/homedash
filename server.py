@@ -604,27 +604,37 @@ async def _fetch_homeassistant(creds, base_url, config={}):
 async def _fetch_unifi(creds, base_url, config={}) -> dict:
     username = creds.get("username", "")
     password = creds.get("password", "")
-    site = config.get("site", "default")
+    site = config.get("site") or creds.get("site") or "default"
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
-        # Login
-        login = await client.post(f"{base_url}/api/login", json={"username": username, "password": password})
+        # Try UniFi OS login first (Cloud Gateway, UDM, etc.)
+        login = await client.post(f"{base_url}/api/auth/login", json={"username": username, "password": password})
         if login.status_code != 200:
-            return {"error": f"UniFi login failed: {login.status_code}"}
+            # Fallback to standalone controller login
+            login = await client.post(f"{base_url}/api/login", json={"username": username, "password": password})
+            if login.status_code != 200:
+                return {"error": f"UniFi login failed: {login.status_code}"}
+            # Standalone controller — direct API paths
+            api_prefix = f"/api/s/{site}"
+            logout_url = f"{base_url}/logout"
+        else:
+            # UniFi OS — proxy through /proxy/network
+            api_prefix = f"/proxy/network/api/s/{site}"
+            logout_url = f"{base_url}/api/auth/logout"
 
         # Get clients
-        r = await client.get(f"{base_url}/api/s/{site}/stat/sta")
+        r = await client.get(f"{base_url}{api_prefix}/stat/sta")
         clients = r.json().get("data", []) if r.status_code == 200 else []
 
         # Get devices
-        rd = await client.get(f"{base_url}/api/s/{site}/stat/device")
+        rd = await client.get(f"{base_url}{api_prefix}/stat/device")
         devices = rd.json().get("data", []) if rd.status_code == 200 else []
 
         # Get health
-        rh = await client.get(f"{base_url}/api/s/{site}/stat/health")
+        rh = await client.get(f"{base_url}{api_prefix}/stat/health")
         health = rh.json().get("data", []) if rh.status_code == 200 else []
 
         # Logout
-        await client.get(f"{base_url}/logout")
+        await client.get(logout_url)
 
         wired = sum(1 for c in clients if c.get("is_wired"))
         wireless = len(clients) - wired
