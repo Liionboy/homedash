@@ -285,13 +285,18 @@ async function loadIntegrations() {
 }
 
 function getServiceIntegration(serviceId) {
-  // Check integrationsCache first (for credentials/config), then service data
-  const cached = integrationsCache.find(i => i.service_id === serviceId);
+  // Normalize: always return { type, cached_data (parsed object), enabled, service_id }
   const svc = servicesCache.find(s => s.id === serviceId);
   if (svc && svc.integration && svc.integration.data) {
-    return { ...svc.integration, service_id: serviceId };
+    return { type: svc.integration.type, cached_data: svc.integration.data, enabled: svc.integration.enabled, service_id: serviceId };
   }
-  return cached || null;
+  const cached = integrationsCache.find(i => i.service_id === serviceId);
+  if (cached) {
+    let parsed = null;
+    try { parsed = typeof cached.cached_data === 'string' ? JSON.parse(cached.cached_data) : cached.cached_data; } catch(e) {}
+    return { type: cached.type, cached_data: parsed, enabled: cached.enabled, service_id: cached.service_id };
+  }
+  return null;
 }
 
 function openIntegrationModal(serviceId) {
