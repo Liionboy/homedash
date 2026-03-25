@@ -524,6 +524,54 @@ INTEGRATION_TYPES = {
         "auth_type": "none",
         "fields": {},
     },
+    "authelia": {
+        "name": "Authelia",
+        "icon": "🔑",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Token", "type": "password", "required": True},
+        },
+    },
+    "vaultwarden": {
+        "name": "Vaultwarden",
+        "icon": "🔐",
+        "auth_type": "apikey",
+        "fields": {
+            "admin_token": {"label": "Admin Token", "type": "password", "required": True},
+        },
+    },
+    "syncthing": {
+        "name": "Syncthing",
+        "icon": "🔄",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "tautulli": {
+        "name": "Tautulli",
+        "icon": "📺",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "overseerr": {
+        "name": "Overseerr",
+        "icon": "🎬",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "gotify": {
+        "name": "Gotify",
+        "icon": "🔔",
+        "auth_type": "token",
+        "fields": {
+            "token": {"label": "Client Token", "type": "password", "required": True},
+        },
+    },
 }
 
 async def fetch_integration_data(itype: str, credentials: dict, base_url: str, config: dict = None) -> dict:
@@ -561,6 +609,12 @@ async def fetch_integration_data(itype: str, credentials: dict, base_url: str, c
             "freshrss": _fetch_freshrss,
             "synology": _fetch_synology,
             "prometheus": _fetch_prometheus,
+            "authelia": _fetch_authelia,
+            "vaultwarden": _fetch_vaultwarden,
+            "syncthing": _fetch_syncthing,
+            "tautulli": _fetch_tautulli,
+            "overseerr": _fetch_overseerr,
+            "gotify": _fetch_gotify,
         }
         if itype in fetchers:
             return await fetchers[itype](credentials, base_url, config)
@@ -1173,6 +1227,101 @@ async def _fetch_prometheus(creds, base_url, config={}):
         # Fallback: try /-/healthy
         rh = await client.get(f"{base_url}/-/healthy")
         return {"status": "healthy" if rh.status_code == 200 else "unhealthy"}
+
+async def _fetch_authelia(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/state", headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            return {
+                "authelia_version": data.get("authelia_version", "—"),
+                "authenticated": data.get("authenticated", False),
+                "username": data.get("username", "—"),
+                "display_name": data.get("display_name", "—"),
+                "emails": data.get("emails", []),
+            }
+        return {"error": f"Authelia API error: {r.status_code}"}
+
+async def _fetch_vaultwarden(creds, base_url, config={}):
+    admin_token = creds.get("admin_token", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/admin/diagnostics", headers={"Authorization": f"Bearer {admin_token}"})
+        if r.status_code == 200:
+            data = r.json()
+            return {
+                "version": data.get("server_alive", {}).get("version", "—"),
+                "users": data.get("user_count", 0),
+                "organizations": data.get("org_count", 0),
+                "vaults": data.get("send_count", 0),
+            }
+        return {"error": f"Vaultwarden admin error: {r.status_code}"}
+
+async def _fetch_syncthing(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-API-Key": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/rest/system/status", headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            rf = await client.get(f"{base_url}/rest/db/status?folder=default", headers=headers)
+            folder_data = rf.json() if rf.status_code == 200 else {}
+            return {
+                "version": data.get("version", "—"),
+                "uptime": data.get("uptime", 0),
+                "my_id": data.get("myID", "")[:12] + "...",
+                "folders": folder_data.get("globalFiles", 0),
+                "in_sync_files": folder_data.get("inSyncFiles", 0),
+            }
+        return {"error": f"Syncthing API error: {r.status_code}"}
+
+async def _fetch_tautulli(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v2?apikey={api_key}&cmd=get_activity")
+        if r.status_code == 200:
+            data = r.json().get("response", {}).get("data", {})
+            streams = data.get("sessions", [])
+            return {
+                "stream_count": data.get("stream_count", 0),
+                "total_bandwidth": data.get("total_bandwidth", 0),
+                "streams": [{
+                    "title": s.get("full_title", "—"),
+                    "user": s.get("username", "—"),
+                    "state": s.get("state", "—"),
+                } for s in streams[:5]],
+            }
+        return {"error": f"Tautulli API error: {r.status_code}"}
+
+async def _fetch_overseerr(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Api-Key": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/status", headers=headers)
+        if r.status_code == 200:
+            rr = await client.get(f"{base_url}/api/v1/request?take=0", headers=headers)
+            req_count = 0
+            if rr.status_code == 200:
+                req_count = rr.json().get("pageInfo", {}).get("results", 0)
+            return {
+                "version": r.json().get("version", "—"),
+                "requests_total": req_count,
+            }
+        return {"error": f"Overseerr API error: {r.status_code}"}
+
+async def _fetch_gotify(creds, base_url, config={}):
+    token = creds.get("token", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/message?token={token}")
+        if r.status_code == 200:
+            msgs = r.json().get("messages", [])
+            return {
+                "messages_total": len(msgs),
+                "latest_title": msgs[0].get("title", "—") if msgs else "—",
+                "latest_message": msgs[0].get("message", "")[:80] if msgs else "",
+            }
+        return {"error": f"Gotify API error: {r.status_code}"}
 
 # ─── Monitor Loop ──────────────────────────────────────────────────
 

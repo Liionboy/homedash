@@ -253,6 +253,9 @@ function serviceCard(s) {
   const intBadge = intg
     ? '<span class="integration-badge">' + (integrationTypesCache[intg.type]?.icon || '🔗') + ' ' + (integrationTypesCache[intg.type]?.name || intg.type) + '</span>'
     : '';
+  const intStats = intg && intg.cached_data && !intg.cached_data.error
+    ? '<div class="card-int-stats">' + getIntStatsHtml(intg.type, intg.cached_data) + '</div>'
+    : '';
   const intBtn = '<button class="integration-config-btn" onclick="event.preventDefault();event.stopPropagation();openDetailModal(' + s.id + ')" title="Details">' + (intg ? '📊' : '🔗') + '</button>';
 
   return '<a class="service-card" href="' + esc(s.url) + '" target="_blank" rel="noopener"' +
@@ -262,7 +265,87 @@ function serviceCard(s) {
     '<div class="card-info">' +
     '<div class="card-name">' + esc(s.name) + '</div>' +
     (s.description ? '<div class="card-desc">' + esc(s.description) + '</div>' : '') +
-    ping + intBadge + '</div>' + intBtn + '</a>';
+    intStats + '</div>' + intBtn + '</a>';
+}
+
+function getIntStatsHtml(type, d) {
+  switch (type) {
+    case 'homeassistant':
+      return (d.location ? '🏠 ' + esc(d.location) : '') +
+        (d.state ? ' · ' + (d.state === 'RUNNING' ? '✅ Running' : '⚠️ ' + esc(d.state)) : '') +
+        (d.version ? ' · v' + esc(d.version) : '');
+    case 'unifi':
+      return '👥 ' + (d.clients_total || 0) + ' clients · 📡 ' + (d.devices_total || 0) + ' devices' +
+        (d.health ? ' · ' + (d.health.every(h => h.status === 'ok') ? '✅ All OK' : '⚠️ Issues') : '');
+    case 'qbittorrent': case 'transmission': case 'deluge':
+      return '📥 ' + (d.total_torrents || 0) + ' torrents' +
+        (d.leeching ? ' · ⬇️ ' + d.leeching + ' active' : '') +
+        (d.download_speed ? ' · ' + formatSpeed(d.download_speed) : '');
+    case 'plex': case 'jellyfin': case 'emby':
+      return (d.server_name ? '🖥️ ' + esc(d.server_name) : '') +
+        (d.libraries ? ' · 📚 ' + d.libraries.length + ' libraries' : '') +
+        (d.active_streams !== undefined ? ' · ▶️ ' + d.active_streams + ' streams' : '');
+    case 'portainer':
+      return '🐳 ' + (d.endpoints || 0) + ' endpoints · ' + (d.containers_total || 0) + ' containers' +
+        (d.containers_running !== undefined ? ' (' + d.containers_running + ' running)' : '');
+    case 'grafana':
+      return '📊 ' + (d.dashboards || 0) + ' dashboards' +
+        (d.health === 'ok' ? ' · ✅ Healthy' : '');
+    case 'pihole': case 'adguard':
+      const pct = d.queries_today ? Math.round((d.blocked_today || 0) / d.queries_today * 100) : 0;
+      return '🛡️ ' + (d.queries_today || 0) + ' queries · ' + pct + '% blocked' +
+        (d.status === 'enabled' ? ' · ✅ Active' : ' · ⏸️ Disabled');
+    case 'sonarr': case 'radarr': case 'lidarr':
+      return '📺 ' + (d.series_count || d.movies_count || d.artist_count || 0) + ' items' +
+        (d.wanted_missing !== undefined ? ' · ' + d.wanted_missing + ' missing' : '');
+    case 'proxmox':
+      return '🖥️ ' + (d.nodes || 0) + ' nodes · ' + (d.vms_total || 0) + ' VMs' +
+        (d.vms_running !== undefined ? ' (' + d.vms_running + ' running)' : '');
+    case 'nextcloud':
+      return '☁️ ' + esc(d.version || '') +
+        (d.users !== undefined ? ' · 👥 ' + d.users + ' users' : '');
+    case 'synology':
+      return '💾 ' + (d.model || '') +
+        (d.cpu_percent !== undefined ? ' · CPU ' + d.cpu_percent + '%' : '') +
+        (d.ram_percent !== undefined ? ' · RAM ' + d.ram_percent + '%' : '');
+    case 'tailscale':
+      return '🔒 ' + (d.devices || 0) + ' devices' +
+        (d.devices_online !== undefined ? ' (' + d.devices_online + ' online)' : '');
+    case 'uptimekuma':
+      const up = (d.monitors || []).filter(m => m.status === 'up').length;
+      return '📡 ' + up + '/' + (d.monitors || []).length + ' up';
+    case 'immich':
+      return '📸 ' + (d.photos || 0) + ' photos · ' + (d.videos || 0) + ' videos';
+    case 'gitea': case 'gitlab':
+      return '🔧 ' + (d.repos || 0) + ' repos' +
+        (d.users !== undefined ? ' · 👥 ' + d.users + ' users' : '');
+    case 'authelia':
+      return '🔑 ' + esc(d.authelia_version || '') +
+        (d.authenticated ? ' · ✅ Authenticated' : '');
+    case 'vaultwarden':
+      return '🔐 v' + esc(d.version || '') +
+        (d.users !== undefined ? ' · 👥 ' + d.users + ' users' : '');
+    case 'syncthing':
+      return '🔄 ' + esc(d.version || '') +
+        (d.in_sync_files !== undefined ? ' · ' + d.in_sync_files + ' synced' : '');
+    case 'tautulli':
+      return '📺 ' + (d.stream_count || 0) + ' active streams' +
+        (d.total_bandwidth ? ' · ' + formatSpeed(d.total_bandwidth * 1024) : '');
+    case 'overseerr':
+      return '🎬 ' + (d.requests_total || 0) + ' requests' +
+        (d.version ? ' · v' + esc(d.version) : '');
+    case 'gotify':
+      return '🔔 ' + (d.messages_total || 0) + ' messages' +
+        (d.latest_title ? ' · ' + esc(d.latest_title) : '');
+    default:
+      return '';
+  }
+}
+
+function formatSpeed(bytes) {
+  if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + ' MB/s';
+  if (bytes > 1024) return (bytes / 1024).toFixed(0) + ' KB/s';
+  return bytes + ' B/s';
 }
 
 // ─── Widgets ──────────────────────────────────────────────────────
@@ -443,13 +526,7 @@ function renderIntegrationDetails(type, data) {
     html += '<div class="detail-stat"><span class="label">🏠 Location</span><span class="value">' + esc(data.location || '—') + '</span></div>';
     html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
     html += '<div class="detail-stat"><span class="label">🔄 State</span><span class="value">' + esc(data.state || '—') + '</span></div>';
-    html += '<div class="detail-stat"><span class="label">📊 Entities</span><span class="value">' + (data.entities || '—') + '</span></div>';
-    if (data.top_domains && data.top_domains.length) {
-      html += '<div class="detail-section-title">Top Entity Domains</div>';
-      data.top_domains.forEach(d => {
-        html += '<div class="detail-stat"><span class="label">' + esc(d.domain) + '</span><span class="value">' + d.count + '</span></div>';
-      });
-    }
+    if (data.safe_mode) html += '<div class="detail-stat"><span class="label">⚠️ Safe Mode</span><span class="value" style="color:var(--red)">Active</span></div>';
   } else if (type === 'unifi') {
     html += '<div class="detail-stat"><span class="label">👥 Clients</span><span class="value">' + (data.clients_total || 0) + ' (' + (data.clients_wireless || 0) + ' WiFi, ' + (data.clients_wired || 0) + ' wired)</span></div>';
     html += '<div class="detail-stat"><span class="label">📡 Devices</span><span class="value">' + (data.devices_total || 0) + ' (' + (data.devices_connected || 0) + ' connected)</span></div>';
@@ -563,6 +640,31 @@ function renderIntegrationDetails(type, data) {
     html += '<div class="detail-stat"><span class="label">📡 Targets</span><span class="value">' + (data.targets_total || 0) + '</span></div>';
     html += '<div class="detail-stat"><span class="label">✅ Up</span><span class="value">' + (data.targets_up || 0) + '</span></div>';
     html += '<div class="detail-stat"><span class="label">❌ Down</span><span class="value">' + (data.targets_down || 0) + '</span></div>';
+  } else if (type === 'authelia') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.authelia_version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">👤 Authenticated</span><span class="value">' + (data.authenticated ? '✅ Yes' : '❌ No') + '</span></div>';
+  } else if (type === 'vaultwarden') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">👥 Users</span><span class="value">' + (data.users || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🏢 Orgs</span><span class="value">' + (data.organizations || 0) + '</span></div>';
+  } else if (type === 'syncthing') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🆔 ID</span><span class="value">' + esc(data.my_id || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📁 Synced Files</span><span class="value">' + _fmt(data.in_sync_files) + '</span></div>';
+  } else if (type === 'tautulli') {
+    html += '<div class="detail-stat"><span class="label">▶️ Active Streams</span><span class="value">' + (data.stream_count || 0) + '</span></div>';
+    if (data.streams && data.streams.length) {
+      html += '<div class="detail-section-title">Now Playing</div>';
+      data.streams.forEach(s => {
+        html += '<div class="detail-stat"><span class="label">' + esc(s.title) + '</span><span class="value">' + esc(s.user) + ' (' + esc(s.state) + ')</span></div>';
+      });
+    }
+  } else if (type === 'overseerr') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📋 Requests</span><span class="value">' + (data.requests_total || 0) + '</span></div>';
+  } else if (type === 'gotify') {
+    html += '<div class="detail-stat"><span class="label">🔔 Messages</span><span class="value">' + (data.messages_total || 0) + '</span></div>';
+    if (data.latest_title) html += '<div class="detail-stat"><span class="label">📬 Latest</span><span class="value">' + esc(data.latest_title) + '</span></div>';
   } else {
     html += '<div class="empty">No details available for this integration type.</div>';
   }

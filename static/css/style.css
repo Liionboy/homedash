@@ -966,6 +966,16 @@ body {
   border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
+.card-int-stats {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .integration-config-btn {
   position: absolute;
   bottom: 10px;
