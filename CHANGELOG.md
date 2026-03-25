@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-25
+
+### Added
+- **Mini-stats on service cards** — integration data now visible directly on cards (no need to click 📊)
+- **6 new integrations**: Authelia, Vaultwarden, Syncthing, Tautulli, Overseerr, Gotify
+- Now **36 integration types** total (up from 30)
+
+### Changed
+- Home Assistant detail modal simplified: shows Location, State, Version (removed entity counts)
+
 ## [0.5.1] - 2026-03-25
 
 ### Fixed
@@ -111,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Description              |
 |---------|------------|--------------------------|
+| 0.6.0   | 2026-03-25 | Mini-stats + 6 new integrations |
 | 0.5.1   | 2026-03-25 | UniFi OS + UI fix        |
 | 0.5.0   | 2026-03-25 | 30 service integrations  |
 | 0.4.0   | 2026-03-25 | Service integrations     |
