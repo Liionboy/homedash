@@ -324,7 +324,7 @@ INTEGRATION_TYPES = {
         "icon": "🛡️",
         "auth_type": "apikey",
         "fields": {
-            "api_key": {"label": "API Key / Password", "type": "password", "required": False},
+            "api_key": {"label": "App Password (v6) or API Token (v5)", "type": "password", "required": False},
             "version": {"label": "Version (5 or 6)", "type": "text", "required": False, "default": "5"},
         },
     },
@@ -793,16 +793,24 @@ async def _fetch_pihole(creds, base_url, config={}):
     version = int(config.get("version", creds.get("version", "5")))
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
         if version >= 6:
-            # Pi-hole v6
+            # Pi-hole v6 — try auth
             key = creds.get("api_key", "")
             headers = {}
             if key:
+                # Try app password login (no TOTP needed)
                 login = await client.post(f"{base_url}/api/auth", json={"password": key})
                 if login.status_code == 200:
                     sid = login.json().get("session", {}).get("sid")
                     if sid:
                         headers["X-FTL-SID"] = sid
+                # If login failed, try token as SID directly
+                if not headers.get("X-FTL-SID"):
+                    headers["X-FTL-SID"] = key
+            # Fetch stats
             r = await client.get(f"{base_url}/api/stats/summary", headers=headers)
+            if r.status_code != 200:
+                # Fallback: try without auth (some setups allow it)
+                r = await client.get(f"{base_url}/api/stats/summary")
             if r.status_code != 200:
                 return {"error": f"Pi-hole v6 API error: {r.status_code}"}
             data = r.json()
