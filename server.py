@@ -792,26 +792,31 @@ async def _fetch_portainer(creds, base_url, config={}) -> dict:
 
 async def _fetch_pihole(creds, base_url, config={}):
     version = int(config.get("version", creds.get("version", "5")))
+    base_url = base_url.rstrip("/")
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
         if version >= 6:
-            # Pi-hole v6 — try auth
+            # Pi-hole v6 — try app password login (bypasses TOTP)
             key = creds.get("api_key", "")
             headers = {}
+            sid = None
             if key:
-                # Try app password login (no TOTP needed)
                 login = await client.post(f"{base_url}/api/auth", json={"password": key})
                 if login.status_code == 200:
-                    sid = login.json().get("session", {}).get("sid")
+                    session_data = login.json().get("session", {})
+                    sid = session_data.get("sid")
                     if sid:
                         headers["X-FTL-SID"] = sid
                 # If login failed, try token as SID directly
-                if not headers.get("X-FTL-SID"):
+                if not sid:
                     headers["X-FTL-SID"] = key
             # Fetch stats
             r = await client.get(f"{base_url}/api/stats/summary", headers=headers)
             if r.status_code != 200:
                 # Fallback: try without auth (some setups allow it)
                 r = await client.get(f"{base_url}/api/stats/summary")
+            # Clean up session to free max_sessions slot
+            if sid:
+                await client.delete(f"{base_url}/api/auth", headers={"X-FTL-SID": sid})
             if r.status_code != 200:
                 return {"error": f"Pi-hole v6 API error: {r.status_code}"}
             data = r.json()
