@@ -688,6 +688,184 @@ INTEGRATION_TYPES = {
             "api_key": {"label": "API Token (optional)", "type": "password", "required": False},
         },
     },
+    "npm": {
+        "name": "Nginx Proxy Manager",
+        "icon": "🌐",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "opnsense": {
+        "name": "OPNsense",
+        "icon": "🔥",
+        "auth_type": "basic",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+            "api_secret": {"label": "API Secret", "type": "password", "required": True},
+        },
+    },
+    "pfsense": {
+        "name": "pfSense",
+        "icon": "🔥",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+            "api_secret": {"label": "API Secret", "type": "password", "required": True},
+        },
+    },
+    "unraid": {
+        "name": "Unraid",
+        "icon": "🟧",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "frigate": {
+        "name": "Frigate",
+        "icon": "📹",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "mosquitto": {
+        "name": "Mosquitto MQTT",
+        "icon": "📡",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "wireguard": {
+        "name": "WireGuard",
+        "icon": "🔒",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "code-server": {
+        "name": "Code Server",
+        "icon": "💻",
+        "auth_type": "password",
+        "fields": {
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "guacamole": {
+        "name": "Apache Guacamole",
+        "icon": "🖥️",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "truenas": {
+        "name": "TrueNAS",
+        "icon": "💾",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "omada": {
+        "name": "TP-Link Omada",
+        "icon": "📡",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "caddy": {
+        "name": "Caddy",
+        "icon": "🔒",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key (optional)", "type": "password", "required": False},
+        },
+    },
+    "cockpit": {
+        "name": "Cockpit",
+        "icon": "🛩️",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "changedetection": {
+        "name": "Change Detection",
+        "icon": "🔍",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": False},
+        },
+    },
+    "healthchecks": {
+        "name": "Healthchecks",
+        "icon": "💚",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": True},
+        },
+    },
+    "wallabag": {
+        "name": "Wallabag",
+        "icon": "📖",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "linkding": {
+        "name": "Linkding",
+        "icon": "🔖",
+        "auth_type": "bearer",
+        "fields": {
+            "token": {"label": "API Token", "type": "password", "required": True},
+        },
+    },
+    "romm": {
+        "name": "RomM",
+        "icon": "🎮",
+        "auth_type": "basic",
+        "fields": {
+            "username": {"label": "Username", "type": "text", "required": True},
+            "password": {"label": "Password", "type": "password", "required": True},
+        },
+    },
+    "it-tools": {
+        "name": "IT-Tools",
+        "icon": "🛠️",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "homepage": {
+        "name": "Homepage",
+        "icon": "🏠",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "nginx": {
+        "name": "Nginx",
+        "icon": "🌐",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "ddns-updater": {
+        "name": "DDNS Updater",
+        "icon": "🔄",
+        "auth_type": "none",
+        "fields": {},
+    },
+    "statping": {
+        "name": "Statping",
+        "icon": "📊",
+        "auth_type": "apikey",
+        "fields": {
+            "api_key": {"label": "API Key", "type": "password", "required": False},
+        },
+    },
 }
 
 async def fetch_integration_data(itype: str, credentials: dict, base_url: str, config: dict = None) -> dict:
@@ -746,6 +924,29 @@ async def fetch_integration_data(itype: str, credentials: dict, base_url: str, c
             "miniflux": _fetch_miniflux,
             "stirling-pdf": _fetch_stirling_pdf,
             "watchtower": _fetch_watchtower,
+            "npm": _fetch_npm,
+            "opnsense": _fetch_opnsense,
+            "pfsense": _fetch_pfsense,
+            "unraid": _fetch_unraid,
+            "frigate": _fetch_frigate,
+            "mosquitto": _fetch_mosquitto,
+            "wireguard": _fetch_wireguard,
+            "code-server": _fetch_code_server,
+            "guacamole": _fetch_guacamole,
+            "truenas": _fetch_truenas,
+            "omada": _fetch_omada,
+            "caddy": _fetch_caddy,
+            "cockpit": _fetch_cockpit,
+            "changedetection": _fetch_changedetection,
+            "healthchecks": _fetch_healthchecks,
+            "wallabag": _fetch_wallabag,
+            "linkding": _fetch_linkding,
+            "romm": _fetch_romm,
+            "it-tools": _fetch_it_tools,
+            "homepage": _fetch_homepage,
+            "nginx": _fetch_nginx,
+            "ddns-updater": _fetch_ddns_updater,
+            "statping": _fetch_statping,
         }
         if itype in fetchers:
             return await fetchers[itype](credentials, base_url, config)
@@ -1706,6 +1907,207 @@ async def _fetch_watchtower(creds, base_url, config={}):
         if rm.status_code == 200:
             return {"metrics_available": True}
         return {"status": "running"}
+
+async def _fetch_npm(creds, base_url, config={}):
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        login = await client.post(f"{base_url}/api/tokens", json={"identity": username, "secret": password})
+        if login.status_code != 200:
+            return {"error": f"NPM login failed: {login.status_code}"}
+        token = login.json().get("token", "")
+        headers = {"Authorization": f"Bearer {token}"}
+        rp = await client.get(f"{base_url}/api/nginx/proxy-hosts", headers=headers)
+        proxies = rp.json() if rp.status_code == 200 else []
+        rs = await client.get(f"{base_url}/api/nginx/streams", headers=headers)
+        streams = rs.json() if rs.status_code == 200 else []
+        rc = await client.get(f"{base_url}/api/nginx/ssl", headers=headers)
+        certs = rc.json() if rc.status_code == 200 else []
+        return {
+            "proxy_hosts": len(proxies),
+            "streams": len(streams),
+            "ssl_certs": len(certs),
+            "enabled_hosts": sum(1 for p in proxies if p.get("enabled")),
+        }
+
+async def _fetch_opnsense(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    api_secret = creds.get("api_secret", "")
+    auth = httpx.BasicAuth(api_key, api_secret)
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True, auth=auth) as client:
+        r = await client.get(f"{base_url}/api/diagnostics/firewall/stats")
+        if r.status_code == 200:
+            data = r.json()
+            return {"states": data.get("states", 0), "dstates": data.get("dstates", 0)}
+        return {"error": f"OPNsense API error: {r.status_code}"}
+
+async def _fetch_pfsense(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    api_secret = creds.get("api_secret", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/status", headers={"Authorization": f"Bearer {api_key}.{api_secret}"})
+        if r.status_code == 200:
+            data = r.json().get("data", {})
+            return {"version": data.get("version", "—"), "cpu_usage": data.get("cpu_usage", 0), "mem_usage": data.get("mem_usage", 0)}
+        return {"error": f"pfSense API error: {r.status_code}"}
+
+async def _fetch_unraid(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/info", headers={"x-api-key": api_key})
+        if r.status_code == 200:
+            data = r.json()
+            rd = await client.get(f"{base_url}/api/v1/docker", headers={"x-api-key": api_key})
+            docker = rd.json() if rd.status_code == 200 else {}
+            rv = await client.get(f"{base_url}/api/v1/vms", headers={"x-api-key": api_key})
+            vms = rv.json() if rv.status_code == 200 else {}
+            return {
+                "os_version": data.get("os_version", "—"),
+                "array_status": data.get("array_status", "—"),
+                "docker_containers": len(docker.get("docker", [])) if isinstance(docker.get("docker"), list) else 0,
+                "vms": len(vms.get("domains", [])) if isinstance(vms.get("domains"), list) else 0,
+            }
+        return {"error": f"Unraid API error: {r.status_code}"}
+
+async def _fetch_frigate(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/stats")
+        if r.status_code == 200:
+            data = r.json()
+            cameras = data.get("cameras", {})
+            return {"cameras": len(cameras), "camera_names": list(cameras.keys()), "detection_fps": data.get("detection_fps", 0)}
+        r2 = await client.get(f"{base_url}/api/version")
+        if r2.status_code == 200:
+            return {"version": r2.text.strip()}
+        return {"error": f"Frigate API error: {r.status_code}"}
+
+async def _fetch_mosquitto(creds, base_url, config={}):
+    return {"status": "MQTT broker"}
+
+async def _fetch_wireguard(creds, base_url, config={}):
+    return {"status": "WireGuard VPN"}
+
+async def _fetch_code_server(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/")
+        return {"status": "running" if r.status_code == 200 else "offline"}
+
+async def _fetch_guacamole(creds, base_url, config={}):
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.post(f"{base_url}/api/tokens", data={"username": username, "password": password})
+        if r.status_code == 200:
+            token = r.json().get("authToken", "")
+            rc = await client.get(f"{base_url}/api/session/data/mysql/connections", params={"token": token})
+            connections = rc.json() if rc.status_code == 200 else {}
+            return {"connections": len(connections)}
+        return {"error": f"Guacamole API error: {r.status_code}"}
+
+async def _fetch_truenas(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v2.0/system/info", headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            rp = await client.get(f"{base_url}/api/v2.0/pool", headers=headers)
+            pools = rp.json() if rp.status_code == 200 else []
+            return {"version": data.get("version", "—"), "hostname": data.get("hostname", "—"), "pools": len(pools)}
+        return {"error": f"TrueNAS API error: {r.status_code}"}
+
+async def _fetch_omada(creds, base_url, config={}):
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        login = await client.post(f"{base_url}/api/v2/login", json={"username": username, "password": password})
+        if login.status_code == 200:
+            token = login.json().get("result", {}).get("token", "")
+            headers = {"Csrf-Token": token}
+            rc = await client.get(f"{base_url}/api/v2/sites/default/clients", headers=headers)
+            clients = rc.json().get("result", {}).get("data", []) if rc.status_code == 200 else []
+            rd = await client.get(f"{base_url}/api/v2/sites/default/devices", headers=headers)
+            devices = rd.json().get("result", {}).get("data", []) if rd.status_code == 200 else []
+            return {"clients": len(clients), "devices": len(devices), "devices_connected": sum(1 for d in devices if d.get("status") == 1)}
+        return {"error": f"Omada login failed: {login.status_code}"}
+
+async def _fetch_caddy(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/config/")
+        if r.status_code == 200:
+            config_data = r.json()
+            routes = config_data.get("apps", {}).get("http", {}).get("servers", {})
+            total_routes = sum(len(s.get("routes", [])) for s in routes.values())
+            return {"routes": total_routes, "servers": len(routes)}
+        return {"error": f"Caddy API error: {r.status_code}"}
+
+async def _fetch_cockpit(creds, base_url, config={}):
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/system", auth=httpx.BasicAuth(username, password))
+        return {"status": "running" if r.status_code == 200 else "offline"}
+
+async def _fetch_changedetection(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    params = {"api_key": api_key} if api_key else {}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v1/watch", params=params)
+        if r.status_code == 200:
+            watches = r.json().get("watches", [])
+            return {"watches": len(watches)}
+        return {"error": f"ChangeDetection API error: {r.status_code}"}
+
+async def _fetch_healthchecks(creds, base_url, config={}):
+    api_key = creds.get("api_key", "")
+    headers = {"X-Api-Key": api_key}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/v3/checks/", headers=headers)
+        if r.status_code == 200:
+            checks = r.json().get("checks", [])
+            return {"checks": len(checks), "up": sum(1 for c in checks if c.get("status") == "up"), "down": sum(1 for c in checks if c.get("status") == "down")}
+        return {"error": f"Healthchecks API error: {r.status_code}"}
+
+async def _fetch_wallabag(creds, base_url, config={}):
+    return {"status": "Wallabag reader"}
+
+async def _fetch_linkding(creds, base_url, config={}):
+    token = creds.get("token", "")
+    headers = {"Authorization": f"Token {token}"}
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/bookmarks/", headers=headers, params={"limit": 1})
+        if r.status_code == 200:
+            return {"total": r.json().get("count", 0)}
+        return {"error": f"Linkding API error: {r.status_code}"}
+
+async def _fetch_romm(creds, base_url, config={}):
+    return {"status": "RomM - Retro game manager"}
+
+async def _fetch_it_tools(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/")
+        return {"status": "online" if r.status_code == 200 else "offline"}
+
+async def _fetch_homepage(creds, base_url, config={}):
+    return {"status": "Homepage dashboard"}
+
+async def _fetch_nginx(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/nginx_status")
+        if r.status_code == 200:
+            return {"status": "active"}
+        return {"status": "running"}
+
+async def _fetch_ddns_updater(creds, base_url, config={}):
+    return {"status": "DDNS active"}
+
+async def _fetch_statping(creds, base_url, config={}):
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        r = await client.get(f"{base_url}/api/services")
+        if r.status_code == 200:
+            services = r.json()
+            return {"services": len(services), "online": sum(1 for s in services if s.get("online"))}
+        return {"error": f"Statping API error: {r.status_code}"}
 
 # ─── Monitor Loop ──────────────────────────────────────────────────
 

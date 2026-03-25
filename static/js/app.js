@@ -377,6 +377,60 @@ function getIntStatsHtml(type, d) {
       return '📄 ' + esc(d.status || 'online');
     case 'watchtower':
       return '👁️ Monitoring active';
+    case 'npm':
+      return '🌐 ' + (d.proxy_hosts || 0) + ' proxies · ' + (d.ssl_certs || 0) + ' SSL' +
+        (d.enabled_hosts !== undefined ? ' (' + d.enabled_hosts + ' active)' : '');
+    case 'opnsense':
+      return '🔥 ' + (d.states || 0) + ' states';
+    case 'pfsense':
+      return '🔥 v' + esc(d.version || '') +
+        (d.cpu_usage ? ' · CPU ' + d.cpu_usage + '%' : '');
+    case 'unraid':
+      return '🟧 Array: ' + esc(d.array_status || '?') +
+        (d.docker_containers !== undefined ? ' · 🐳 ' + d.docker_containers : '') +
+        (d.vms !== undefined ? ' · 💻 ' + d.vms + ' VMs' : '');
+    case 'frigate':
+      return '📹 ' + (d.cameras || 0) + ' cameras' +
+        (d.detection_fps ? ' · ' + d.detection_fps + ' FPS' : '');
+    case 'mosquitto':
+      return '📡 MQTT broker';
+    case 'wireguard':
+      return '🔒 WireGuard VPN';
+    case 'code-server':
+      return '💻 VS Code Server';
+    case 'guacamole':
+      return '🖥️ ' + (d.connections || 0) + ' connections';
+    case 'truenas':
+      return '💾 v' + esc(d.version || '') + ' · ' + (d.pools || 0) + ' pools';
+    case 'omada':
+      return '📡 ' + (d.clients || 0) + ' clients · ' + (d.devices || 0) + ' devices' +
+        (d.devices_connected !== undefined ? ' (' + d.devices_connected + ' up)' : '');
+    case 'caddy':
+      return '🔒 ' + (d.routes || 0) + ' routes · ' + (d.servers || 0) + ' servers';
+    case 'cockpit':
+      return '🛩️ Server management';
+    case 'changedetection':
+      return '🔍 ' + (d.watches || 0) + ' watches';
+    case 'healthchecks':
+      return '💚 ' + (d.checks || 0) + ' checks' +
+        (d.down ? ' · 🔴 ' + d.down + ' down' : ' · ✅ All up');
+    case 'wallabag':
+      return '📖 ' + (d.total || 0) + ' articles';
+    case 'linkding':
+      return '🔖 ' + (d.total || 0) + ' bookmarks';
+    case 'romm':
+      return '🎮 ' + (d.platforms || 0) + ' platforms';
+    case 'it-tools':
+      return '🛠️ Developer tools';
+    case 'homepage':
+      return '🏠 Dashboard';
+    case 'nginx':
+      return '🌐 Web server';
+    case 'ddns-updater':
+      return '🔄 Dynamic DNS';
+    case 'statping':
+      return '📊 ' + (d.services || 0) + ' services' +
+        (d.online !== undefined ? ' · ' + d.online + ' up' : '');
     default:
       return '';
   }
@@ -748,6 +802,46 @@ function renderIntegrationDetails(type, data) {
   } else if (type === 'miniflux') {
     html += '<div class="detail-stat"><span class="label">📰 Feeds</span><span class="value">' + (data.feeds || 0) + '</span></div>';
     html += '<div class="detail-stat"><span class="label">📬 Unread</span><span class="value">' + (data.unread || 0) + '</span></div>';
+  } else if (type === 'npm') {
+    html += '<div class="detail-stat"><span class="label">🌐 Proxy Hosts</span><span class="value">' + (data.proxy_hosts || 0) + ' (' + (data.enabled_hosts || 0) + ' active)</span></div>';
+    html += '<div class="detail-stat"><span class="label">🔀 Streams</span><span class="value">' + (data.streams || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🔒 SSL Certs</span><span class="value">' + (data.ssl_certs || 0) + '</span></div>';
+  } else if (type === 'opnsense') {
+    html += '<div class="detail-stat"><span class="label">🔥 States</span><span class="value">' + (data.states || 0) + '</span></div>';
+  } else if (type === 'pfsense') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">⚡ CPU</span><span class="value">' + (data.cpu_usage || 0) + '%</span></div>';
+    html += '<div class="detail-stat"><span class="label">💾 Memory</span><span class="value">' + (data.mem_usage || 0) + '%</span></div>';
+  } else if (type === 'unraid') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.os_version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🟧 Array</span><span class="value">' + esc(data.array_status || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🐳 Docker</span><span class="value">' + (data.docker_containers || 0) + ' containers</span></div>';
+    html += '<div class="detail-stat"><span class="label">💻 VMs</span><span class="value">' + (data.vms || 0) + '</span></div>';
+  } else if (type === 'frigate') {
+    html += '<div class="detail-stat"><span class="label">📹 Cameras</span><span class="value">' + (data.cameras || 0) + '</span></div>';
+    if (data.camera_names && data.camera_names.length) {
+      html += '<div class="detail-stat"><span class="label">🎥 Names</span><span class="value">' + esc(data.camera_names.join(', ')) + '</span></div>';
+    }
+    html += '<div class="detail-stat"><span class="label">📊 Detection FPS</span><span class="value">' + (data.detection_fps || 0) + '</span></div>';
+  } else if (type === 'truenas') {
+    html += '<div class="detail-stat"><span class="label">📦 Version</span><span class="value">' + esc(data.version || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🖥️ Hostname</span><span class="value">' + esc(data.hostname || '—') + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">💾 Pools</span><span class="value">' + (data.pools || 0) + '</span></div>';
+  } else if (type === 'omada') {
+    html += '<div class="detail-stat"><span class="label">👥 Clients</span><span class="value">' + (data.clients || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">📡 Devices</span><span class="value">' + (data.devices || 0) + ' (' + (data.devices_connected || 0) + ' connected)</span></div>';
+  } else if (type === 'caddy') {
+    html += '<div class="detail-stat"><span class="label">🔀 Routes</span><span class="value">' + (data.routes || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">🖥️ Servers</span><span class="value">' + (data.servers || 0) + '</span></div>';
+  } else if (type === 'healthchecks') {
+    html += '<div class="detail-stat"><span class="label">💚 Checks</span><span class="value">' + (data.checks || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">✅ Up</span><span class="value">' + (data.up || 0) + '</span></div>';
+    if (data.down) html += '<div class="detail-stat"><span class="label">❌ Down</span><span class="value" style="color:var(--red)">' + data.down + '</span></div>';
+  } else if (type === 'linkding') {
+    html += '<div class="detail-stat"><span class="label">🔖 Bookmarks</span><span class="value">' + (data.total || 0) + '</span></div>';
+  } else if (type === 'statping') {
+    html += '<div class="detail-stat"><span class="label">📊 Services</span><span class="value">' + (data.services || 0) + '</span></div>';
+    html += '<div class="detail-stat"><span class="label">✅ Online</span><span class="value">' + (data.online || 0) + '</span></div>';
   } else {
     html += '<div class="empty">No details available for this integration type.</div>';
   }
