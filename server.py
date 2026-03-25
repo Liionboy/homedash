@@ -415,7 +415,9 @@ INTEGRATION_TYPES = {
         "icon": "🖥️",
         "auth_type": "token",
         "fields": {
-            "api_token": {"label": "API Token (user=secret)", "type": "password", "required": True},
+            "api_token": {"label": "API Token (user@realm!tokenid=secret)", "type": "password", "required": False},
+            "username": {"label": "Username (user@realm)", "type": "text", "required": False},
+            "password": {"label": "Password", "type": "password", "required": False},
         },
     },
     "tailscale": {
@@ -1332,26 +1334,69 @@ async def _fetch_jellyfin(creds, base_url, config={}):
         }
 
 async def _fetch_proxmox(creds, base_url, config={}):
-    token_parts = creds.get("api_token", "").split("=", 1)
-    if len(token_parts) != 2:
-        return {"error": "Invalid token format. Use: user@realm!tokenid=secret"}
-    user, secret = token_parts
-    headers = {"Authorization": f"PVEAPIToken={user}={secret}"}
+    api_token = creds.get("api_token", "")
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    base_url = base_url.rstrip("/")
+
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        headers = {}
+
+        if api_token and "=" in api_token:
+            # API Token: user@realm!tokenid=secret
+            token_parts = api_token.split("=", 1)
+            user, secret = token_parts
+            headers["Authorization"] = f"PVEAPIToken={user}={secret}"
+        elif username and password:
+            # Username+password login
+            login = await client.post(f"{base_url}/api2/json/access/ticket", data={
+                "username": username, "password": password
+            })
+            if login.status_code == 200:
+                ticket_data = login.json().get("data", {})
+                ticket = ticket_data.get("ticket", "")
+                csrf = ticket_data.get("CSRFPreventionToken", "")
+                headers["Cookie"] = f"PVEAuthCookie={ticket}"
+                if csrf:
+                    headers["CSRFPreventionToken"] = csrf
+            else:
+                return {"error": f"Proxmox login failed: {login.status_code}"}
+        else:
+            return {"error": "Provide API Token (user@realm!tokenid=secret) or Username+Password"}
+
+        # Get nodes
         rn = await client.get(f"{base_url}/api2/json/nodes", headers=headers)
-        nodes = rn.json().get("data", []) if rn.status_code == 200 else []
+        if rn.status_code != 200:
+            return {"error": f"Proxmox API error: {rn.status_code}"}
+
+        nodes = rn.json().get("data", [])
         vms = []
+        lxc = []
+
         for node in nodes:
-            rv = await client.get(f"{base_url}/api2/json/nodes/{node['node']}/qemu", headers=headers)
+            node_name = node["node"]
+            # QEMU VMs
+            rv = await client.get(f"{base_url}/api2/json/nodes/{node_name}/qemu", headers=headers)
             if rv.status_code == 200:
                 vms.extend(rv.json().get("data", []))
-        running = sum(1 for v in vms if v.get("status") == "running")
+            # LXC containers
+            rl = await client.get(f"{base_url}/api2/json/nodes/{node_name}/lxc", headers=headers)
+            if rl.status_code == 200:
+                lxc.extend(rl.json().get("data", []))
+
+        all_vms = vms + lxc
+        running = sum(1 for v in all_vms if v.get("status") == "running")
+
         return {
             "nodes": len(nodes),
             "node_names": [n["node"] for n in nodes],
+            "node_status": {n["node"]: n.get("status", "?") for n in nodes},
             "vms_total": len(vms),
-            "vms_running": running,
-            "vms_stopped": len(vms) - running,
+            "vms_running": sum(1 for v in vms if v.get("status") == "running"),
+            "lxc_total": len(lxc),
+            "lxc_running": sum(1 for v in lxc if v.get("status") == "running"),
+            "total_running": running,
+            "total_stopped": len(all_vms) - running,
         }
 
 async def _fetch_tailscale(creds, base_url, config={}):

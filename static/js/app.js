@@ -302,7 +302,8 @@ function getIntStatsHtml(type, d) {
         (d.wanted_missing !== undefined ? ' · ' + d.wanted_missing + ' missing' : '');
     case 'proxmox':
       return '🖥️ ' + (d.nodes || 0) + ' nodes · ' + (d.vms_total || 0) + ' VMs' +
-        (d.vms_running !== undefined ? ' (' + d.vms_running + ' running)' : '');
+        (d.lxc_total ? ' · ' + d.lxc_total + ' LXC' : '') +
+        (d.total_running !== undefined ? ' (' + d.total_running + ' on)' : '');
     case 'nextcloud':
       return '☁️ ' + esc(d.version || '') +
         (d.users !== undefined ? ' · 👥 ' + d.users + ' users' : '');
@@ -686,6 +687,7 @@ function renderIntegrationDetails(type, data) {
   } else if (type === 'proxmox') {
     html += '<div class="detail-stat"><span class="label">🖥️ Nodes</span><span class="value">' + (data.nodes || 0) + ' — ' + esc((data.node_names || []).join(', ')) + '</span></div>';
     html += '<div class="detail-stat"><span class="label">💻 VMs</span><span class="value">' + (data.vms_running || 0) + ' running / ' + (data.vms_total || 0) + ' total</span></div>';
+    if (data.lxc_total) html += '<div class="detail-stat"><span class="label">📦 LXC</span><span class="value">' + (data.lxc_running || 0) + ' running / ' + (data.lxc_total || 0) + ' total</span></div>';
   } else if (type === 'tailscale') {
     html += '<div class="detail-stat"><span class="label">🌐 Tailnet</span><span class="value">' + esc(data.tailnet || '—') + '</span></div>';
     html += '<div class="detail-stat"><span class="label">📱 Devices</span><span class="value">' + (data.devices || 0) + ' (' + (data.online || 0) + ' online, ' + (data.offline || 0) + ' offline)</span></div>';
