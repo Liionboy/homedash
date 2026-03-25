@@ -5,13 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-03-25
 
 ### Added
-- README.md documentation
-- CHANGELOG.md
-
-## [0.4.0] - 2026-03-25
+- **30 service integrations** inspired by Homepage
+- Media: Plex, Jellyfin, Emby
+- Automation: Sonarr, Radarr, Lidarr, Bazarr, Prowlarr
+- Downloads: qBittorrent, Transmission, Deluge, SABnzbd, NZBGet
+- Network: Pi-hole (v5/v6), AdGuard Home, Tailscale
+- Infra: Portainer, Proxmox, Synology, Prometheus, Grafana
+- Monitoring: Uptime Kuma
+- Cloud: Nextcloud, Immich, Paperless-ngx
+- Dev: Gitea, GitLab
+- News: FreshRSS
+- Helper functions for formatting numbers and speeds
 
 ### Added
 - **Service Integrations** — connect services with credentials to see live data
@@ -94,6 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Description              |
 |---------|------------|--------------------------|
+| 0.5.0   | 2026-03-25 | 30 service integrations  |
 | 0.4.0   | 2026-03-25 | Service integrations     |
 | 0.3.0   | 2026-03-24 | Homepage-style UI v2     |
 | 0.2.0   | 2026-03-24 | Drag-and-drop + status   |
