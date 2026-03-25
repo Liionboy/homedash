@@ -4,3 +4,5 @@ __pycache__/
 *.db
 logs/
 venv/
+*.db-shm
+*.db-wal
