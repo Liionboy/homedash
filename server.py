@@ -24,7 +24,7 @@ from pydantic import BaseModel
 # ─── Config ────────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
-DB_PATH = BASE_DIR / "homedash.db"
+DB_PATH = Path(os.environ.get("HOMEDASH_DB", str(BASE_DIR / "homedash.db")))
 SESSIONS = {}
 CHECK_INTERVAL = 30
 

@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+homedash.db
+logs/
+.git/
+.env
