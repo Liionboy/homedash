@@ -1545,16 +1545,21 @@ async def _fetch_immich(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"x-api-key": token}
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
-        rs = await client.get(f"{base_url}/api/server-info/statistics", headers=headers)
+        # Try v2.x endpoints first, fall back to legacy
+        rs = await client.get(f"{base_url}/api/server/statistics", headers=headers)
+        if rs.status_code != 200:
+            rs = await client.get(f"{base_url}/api/server-info/statistics", headers=headers)
         stats = rs.json() if rs.status_code == 200 else {}
-        rv = await client.get(f"{base_url}/api/server-info/version", headers=headers)
+        rv = await client.get(f"{base_url}/api/server/version", headers=headers)
+        if rv.status_code != 200:
+            rv = await client.get(f"{base_url}/api/server-info/version", headers=headers)
         version = rv.json() if rv.status_code == 200 else {}
         return {
             "photos": stats.get("photos", 0),
             "videos": stats.get("videos", 0),
             "total": stats.get("total", 0),
             "usage": round(stats.get("usage", 0) / (1024**3), 2) if stats.get("usage") else 0,
-            "version": version.get("major", "—"),
+            "version": f"{version.get('major', '')}.{version.get('minor', '')}.{version.get('patch', '')}" if version.get("major") else "—",
         }
 
 async def _fetch_paperless(creds, base_url, config={}):
