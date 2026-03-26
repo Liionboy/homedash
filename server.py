@@ -2197,6 +2197,7 @@ async def run_monitor_loop():
 
             latest_status = {"services": results, "timestamp": time.time()}
             await manager.broadcast({"type": "status_update", "data": latest_status})
+            await refresh_widgets()
             await asyncio.sleep(CHECK_INTERVAL)
         except asyncio.CancelledError:
             break
@@ -2243,6 +2244,7 @@ async def lifespan(app: FastAPI):
     global monitor_task
     init_db()
     monitor_task = asyncio.create_task(run_monitor_loop())
+    asyncio.create_task(refresh_widgets())
     logger.info("Homedash started")
     yield
     if monitor_task:
@@ -2494,14 +2496,93 @@ async def fetch_widget_data(wtype: str, config: dict) -> dict:
         elif wtype == "docker":
             try:
                 loop = asyncio.get_event_loop()
-                client = docker.from_env()
-                containers = await loop.run_in_executor(None, lambda: client.containers.list(all=True))
-                running = sum(1 for c in containers if c.status == "running")
+                hosts = config.get("hosts", [])
+                all_containers = []
+                host_errors = []
+
+                async def _fetch_docker_local():
+                    """Fetch local Docker containers."""
+                    client = docker.from_env()
+                    containers = await loop.run_in_executor(None, lambda: client.containers.list(all=True))
+                    result = []
+                    for c in containers:
+                        result.append({
+                            "name": c.name,
+                            "status": c.status,
+                            "image": c.image.tags[0] if c.image.tags else c.image.short_id,
+                            "host": "local",
+                        })
+                    client.close()
+                    return result
+
+                async def _fetch_docker_ssh(host_cfg):
+                    """Fetch Docker containers via SSH."""
+                    import subprocess, json as _json
+                    host_url = host_cfg.get("url", "")
+                    host_name = host_cfg.get("name", host_url)
+                    from urllib.parse import urlparse
+                    parsed = urlparse(host_url)
+                    ssh_user = parsed.username or "root"
+                    ssh_host = parsed.hostname
+                    ssh_port = parsed.port or 22
+                    ssh_key = host_cfg.get("key", os.path.expanduser("~/.ssh/id_ed25519_servers"))
+
+                    # Use simple docker ps format separated by pipe
+                    remote_cmd = "docker ps -a --format '{{.Names}}|{{.Image}}|{{.State}}'"
+                    cmd = [
+                        "ssh", "-i", ssh_key,
+                        "-o", "StrictHostKeyChecking=no",
+                        "-o", "ConnectTimeout=5",
+                        "-p", str(ssh_port),
+                        f"{ssh_user}@{ssh_host}",
+                        remote_cmd
+                    ]
+                    proc = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await proc.communicate()
+                    if proc.returncode != 0:
+                        raise Exception(stderr.decode().strip())
+
+                    result = []
+                    for line in stdout.decode().strip().split("\n"):
+                        if "|" in line:
+                            parts = line.split("|", 2)
+                            if len(parts) == 3:
+                                name, image, state = parts
+                                result.append({
+                                    "name": name.strip(),
+                                    "status": state.strip().lower(),
+                                    "image": image.strip(),
+                                    "host": host_name,
+                                })
+                    return result
+
+                if hosts:
+                    tasks = []
+                    for host_cfg in hosts:
+                        if "ssh://" in host_cfg.get("url", ""):
+                            tasks.append(_fetch_docker_ssh(host_cfg))
+                        else:
+                            tasks.append(_fetch_docker_local())
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    for i, res in enumerate(results):
+                        if isinstance(res, Exception):
+                            host_errors.append({"host": hosts[i].get("name", "unknown"), "error": str(res)})
+                        else:
+                            all_containers.extend(res)
+                else:
+                    all_containers = await _fetch_docker_local()
+
+                running = sum(1 for c in all_containers if c["status"] == "running")
                 return {
-                    "total": len(containers),
+                    "total": len(all_containers),
                     "running": running,
-                    "stopped": len(containers) - running,
-                    "containers": [{"name": c.name, "status": c.status, "image": c.image.tags[0] if c.image.tags else c.image.short_id} for c in containers[:20]],
+                    "stopped": len(all_containers) - running,
+                    "containers": all_containers[:30],
+                    "host_errors": host_errors if host_errors else None,
                 }
             except Exception as e:
                 return {"error": str(e)}

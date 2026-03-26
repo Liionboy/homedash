@@ -138,6 +138,16 @@
       <div id="w-config-clock" class="hidden">
         <label><span>Timezone</span><input id="w-tz" value="Europe/Bucharest"></label>
       </div>
+      <div id="w-config-docker" class="hidden">
+        <label><span>Docker Hosts</span></label>
+        <div id="docker-hosts-list" class="docker-hosts"></div>
+        <div class="form-row">
+          <input id="dh-name" placeholder="Name (e.g. DockerHome)" style="flex:1">
+          <input id="dh-url" placeholder="ssh://adrian@192.168.1.79" style="flex:2">
+          <button class="secondary-btn" onclick="addDockerHost()">+ Add</button>
+        </div>
+        <small>Leave empty for local Docker. For remote: <code>ssh://user@host</code></small>
+      </div>
       <div class="form-actions">
         <button class="primary-btn" onclick="saveWidget()">Add Widget</button>
         <button class="secondary-btn" onclick="closeWidgetModal()">Cancel</button>

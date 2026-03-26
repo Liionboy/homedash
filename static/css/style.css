@@ -587,6 +587,25 @@ body {
 .docker-widget .container-status.running { background: rgba(34,197,94,0.12); color: var(--green); }
 .docker-widget .container-status.exited { background: rgba(239,68,68,0.12); color: var(--red); }
 .docker-widget .container-status.paused { background: rgba(245,158,11,0.12); color: var(--yellow); }
+.docker-widget .container-host {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(99,102,241,0.12);
+  color: var(--accent);
+  margin-left: 6px;
+}
+.docker-hosts { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.docker-host-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.docker-host-row code { font-size: 11px; opacity: .7; }
 
 .clock-widget { position: relative; z-index: 1; text-align: center; }
 
@@ -715,6 +734,7 @@ body {
 .modal-body { padding: 20px; }
 
 .form-grid { display: grid; gap: 14px; }
+.form-row { display: flex; gap: 8px; align-items: center; }
 
 .form-grid label { display: grid; gap: 6px; }
 

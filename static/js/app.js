@@ -911,8 +911,14 @@ function renderWidget(w) {
         '<span class="summary-item"><span class="num">' + data.total + '</span> total</span></div>';
       content += data.containers.map(c =>
         '<div class="container-row"><span>' + esc(c.name) + '</span>' +
+        (c.host && c.host !== 'local' ? '<span class="container-host">' + esc(c.host) + '</span>' : '') +
         '<span class="container-status ' + c.status + '">' + c.status + '</span></div>'
       ).join('');
+      if (data.host_errors && data.host_errors.length) {
+        content += data.host_errors.map(e =>
+          '<div class="container-row" style="opacity:.6"><span>⚠️ ' + esc(e.host) + '</span><span class="container-status stopped">error</span></div>'
+        ).join('');
+      }
     } else if (data.error) {
       content += '<div class="empty">' + esc(data.error) + '</div>';
     }
@@ -970,6 +976,29 @@ function showWidgetConfig() {
   const type = document.getElementById('w-type').value;
   document.getElementById('w-config-weather').classList.toggle('hidden', type !== 'weather');
   document.getElementById('w-config-clock').classList.toggle('hidden', type !== 'clock');
+  document.getElementById('w-config-docker').classList.toggle('hidden', type !== 'docker');
+}
+
+let dockerHosts = [];
+function addDockerHost() {
+  const name = document.getElementById('dh-name').value.trim();
+  const url = document.getElementById('dh-url').value.trim();
+  if (!url) return;
+  dockerHosts.push({ name: name || url, url });
+  renderDockerHosts();
+  document.getElementById('dh-name').value = '';
+  document.getElementById('dh-url').value = '';
+}
+function removeDockerHost(i) {
+  dockerHosts.splice(i, 1);
+  renderDockerHosts();
+}
+function renderDockerHosts() {
+  const el = document.getElementById('docker-hosts-list');
+  el.innerHTML = dockerHosts.map((h, i) =>
+    '<div class="docker-host-row"><span>🐳 ' + esc(h.name) + ' — <code>' + esc(h.url) + '</code></span>' +
+    '<button class="icon-btn" onclick="removeDockerHost(' + i + ')">✕</button></div>'
+  ).join('') || '<small style="opacity:.5">No remote hosts (will use local Docker)</small>';
 }
 
 async function saveWidget() {
@@ -977,6 +1006,7 @@ async function saveWidget() {
   let config = {};
   if (type === 'weather') config = { city: document.getElementById('w-city').value };
   if (type === 'clock') config = { timezone: document.getElementById('w-tz').value };
+  if (type === 'docker') config = { hosts: dockerHosts };
   if (type === 'bookmarks') config = { links: [] };
 
   const res = await api('/api/widgets', {
