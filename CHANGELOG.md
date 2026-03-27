@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] - 2026-03-27
+
+### Fixed
+- **Nginx Proxy Manager SSL certificates** — changed endpoint from `/api/nginx/ssl` to `/api/nginx/certificates` (NPM API changed in newer versions)
+- Network discovery: expanded scan range (192.168.1.5-250), more ports (Plex, Jellyfin, Sonarr, Radarr, Syncthing, etc.), faster timeout (2s), higher concurrency (100)
+
 ## [0.9.0] - 2026-03-25
 
 ### Added

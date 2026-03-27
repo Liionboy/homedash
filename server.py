@@ -232,17 +232,22 @@ async def discover_docker():
 async def discover_network(hosts: list[str] = None, ports: list[int] = None):
     """Probe common ports on hosts to find web services."""
     if not hosts:
-        hosts = ["192.168.1.1", "192.168.1.2", "192.168.1.3"]
+        hosts = [f"192.168.1.{i}" for i in range(5, 250)]
     if not ports:
-        ports = [80, 443, 8080, 8443, 3000, 32400, 8123, 9000]
+        ports = [
+            80, 443, 8080, 8443, 8123, 9000,
+            5000, 8096, 2283, 32400, 9443,
+            7878, 8989, 9091, 8384, 8081,
+            3000, 9001, 10000, 8888, 9999,
+        ]
     results = []
-    sem = asyncio.Semaphore(20)
+    sem = asyncio.Semaphore(100)
 
     async def probe(host, port):
         async with sem:
             try:
-                async with httpx.AsyncClient(verify=False, timeout=3, follow_redirects=True) as client:
-                    proto = "https" if port in (443, 8443) else "http"
+                async with httpx.AsyncClient(verify=False, timeout=2, follow_redirects=True) as client:
+                    proto = "https" if port in (443, 8443, 9443) else "http"
                     url = f"{proto}://{host}:{port}"
                     r = await client.get(url)
                     if r.status_code < 500:
@@ -1971,7 +1976,7 @@ async def _fetch_npm(creds, base_url, config={}):
         proxies = rp.json() if rp.status_code == 200 else []
         rs = await client.get(f"{base_url}/api/nginx/streams", headers=headers)
         streams = rs.json() if rs.status_code == 200 else []
-        rc = await client.get(f"{base_url}/api/nginx/ssl", headers=headers)
+        rc = await client.get(f"{base_url}/api/nginx/certificates", headers=headers)
         certs = rc.json() if rc.status_code == 200 else []
         return {
             "proxy_hosts": len(proxies),
