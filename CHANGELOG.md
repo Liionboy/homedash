@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] - 2026-03-28
+
+### Fixed
+- **Pi-hole v6 session reuse** — cached SID instead of login/logout every 30s poll cycle. Before: ~2880 logins/day causing "API seats exceeded" and conflicts with Home Assistant sharing the same app password. After: single persistent session, re-login only on 401 expiry.
+
 ## [0.9.4] - 2026-03-27
 
 ### Fixed
