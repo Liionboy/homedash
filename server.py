@@ -1137,56 +1137,79 @@ async def _fetch_portainer(creds, base_url, config={}) -> dict:
             "containers_stopped": len(containers) - running,
         }
 
+# Pi-hole v6 session cache: {base_url: {"sid": "...", "client": AsyncClient}}
+_pihole_sessions: dict = {}
+
 async def _fetch_pihole(creds, base_url, config={}):
     version = int(config.get("version", creds.get("version", "5")))
     base_url = base_url.rstrip("/")
+    if version >= 6:
+        return await _fetch_pihole_v6(creds, base_url, config)
+    # Pi-hole v5 — no session management needed
     async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
-        if version >= 6:
-            # Pi-hole v6 — try app password login (bypasses TOTP)
-            key = creds.get("api_key", "")
-            headers = {}
-            sid = None
-            if key:
-                login = await client.post(f"{base_url}/api/auth", json={"password": key})
-                if login.status_code == 200:
-                    session_data = login.json().get("session", {})
-                    sid = session_data.get("sid")
-                    if sid:
-                        headers["X-FTL-SID"] = sid
-                # If login failed, try token as SID directly
-                if not sid:
-                    headers["X-FTL-SID"] = key
-            # Fetch stats
-            r = await client.get(f"{base_url}/api/stats/summary", headers=headers)
-            if r.status_code != 200:
-                # Fallback: try without auth (some setups allow it)
-                r = await client.get(f"{base_url}/api/stats/summary")
-            # Clean up session to free max_sessions slot
+        r = await client.get(f"{base_url}/admin/api.php?summaryRaw")
+        if r.status_code != 200:
+            return {"error": f"Pi-hole API error: {r.status_code}"}
+        data = r.json()
+        return {
+            "dns_queries_today": int(data.get("dns_queries_today", 0)),
+            "ads_blocked_today": int(data.get("ads_blocked_today", 0)),
+            "ads_percentage_today": round(float(data.get("ads_percentage_today", 0)), 2),
+            "domains_being_blocked": int(data.get("domains_being_blocked", 0)),
+            "version": "v5",
+        }
+
+async def _pihole_login(client, base_url, password):
+    """Login to Pi-hole v6 and return (sid, headers) or (None, {})."""
+    try:
+        login = await client.post(f"{base_url}/api/auth", json={"password": password})
+        if login.status_code == 200:
+            session_data = login.json().get("session", {})
+            sid = session_data.get("sid")
             if sid:
-                await client.delete(f"{base_url}/api/auth", headers={"X-FTL-SID": sid})
-            if r.status_code != 200:
-                return {"error": f"Pi-hole v6 API error: {r.status_code}"}
-            data = r.json()
-            return {
-                "dns_queries_today": data.get("queries", {}).get("total", 0),
-                "ads_blocked_today": data.get("queries", {}).get("blocked", 0),
-                "ads_percentage_today": round(data.get("queries", {}).get("percent_blocked", 0), 2),
-                "domains_being_blocked": data.get("gravity", {}).get("domains_being_blocked", 0),
-                "version": "v6",
-            }
-        else:
-            # Pi-hole v5
-            r = await client.get(f"{base_url}/admin/api.php?summaryRaw")
-            if r.status_code != 200:
-                return {"error": f"Pi-hole API error: {r.status_code}"}
-            data = r.json()
-            return {
-                "dns_queries_today": int(data.get("dns_queries_today", 0)),
-                "ads_blocked_today": int(data.get("ads_blocked_today", 0)),
-                "ads_percentage_today": round(float(data.get("ads_percentage_today", 0)), 2),
-                "domains_being_blocked": int(data.get("domains_being_blocked", 0)),
-                "version": "v5",
-            }
+                return sid, {"X-FTL-SID": sid}
+    except Exception:
+        pass
+    return None, {}
+
+async def _fetch_pihole_v6(creds, base_url, config={}):
+    key = creds.get("api_key", "")
+    cached = _pihole_sessions.get(base_url, {})
+    sid = cached.get("sid")
+    headers = {"X-FTL-SID": sid} if sid else {}
+    if not key and not sid:
+        # No credentials and no cached session — try without auth
+        headers = {}
+
+    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+        # Try with existing session first
+        r = await client.get(f"{base_url}/api/stats/summary", headers=headers)
+
+        # If session expired (401/403) and we have credentials, re-login
+        if r.status_code in (401, 403) and key:
+            _pihole_sessions.pop(base_url, None)
+            sid, headers = await _pihole_login(client, base_url, key)
+            if sid:
+                _pihole_sessions[base_url] = {"sid": sid}
+            else:
+                # Fallback: try key as SID directly
+                headers = {"X-FTL-SID": key}
+            r = await client.get(f"{base_url}/api/stats/summary", headers=headers)
+
+        # Last resort: no auth
+        if r.status_code != 200:
+            r = await client.get(f"{base_url}/api/stats/summary")
+
+        if r.status_code != 200:
+            return {"error": f"Pi-hole v6 API error: {r.status_code}"}
+        data = r.json()
+        return {
+            "dns_queries_today": data.get("queries", {}).get("total", 0),
+            "ads_blocked_today": data.get("queries", {}).get("blocked", 0),
+            "ads_percentage_today": round(data.get("queries", {}).get("percent_blocked", 0), 2),
+            "domains_being_blocked": data.get("gravity", {}).get("domains_being_blocked", 0),
+            "version": "v6",
+        }
 
 async def _fetch_sonarr_radarr(creds, base_url, config={}):
     api_key = creds.get("api_key", "")

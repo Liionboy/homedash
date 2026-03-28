@@ -1186,7 +1186,7 @@ async function runDockerDiscover() {
 
 async function runNetworkDiscover() {
   const el = document.getElementById('discover-results');
-  el.innerHTML = '<div class="empty">Scanning network... (this may take 10-15 seconds)</div>';
+  el.innerHTML = '<div class="empty">Scanning network... (this may take 1-2 minutes)</div>';
   const res = await api('/api/discover/network', {
     method: 'POST',
     body: JSON.stringify({ hosts: [], ports: [] })
