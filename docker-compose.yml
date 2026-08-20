@@ -9,10 +9,16 @@ services:
       - "9876:9876"
     volumes:
       - homedash-data:/app/data
+      # Optional Docker discovery. Prefer a Docker socket proxy in production;
+      # the Docker API is effectively host-admin access.
+      # - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env
     environment:
-      - HOMEDASH_PORT=9876
-      - HOMEDASH_USER=admin
-      - HOMEDASH_PASS=admin
+      - HOMEDASH_PORT=${HOMEDASH_PORT:-9876}
+      - HOMEDASH_DB=/app/data/homedash.db
+      - HOMEDASH_SECRET=${HOMEDASH_SECRET:?HOMEDASH_SECRET must be set in .env}
+      - HOMEDASH_PASS=${HOMEDASH_PASS:?HOMEDASH_PASS must be set in .env}
     networks:
       - homedash-net
 

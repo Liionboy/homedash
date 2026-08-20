@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-08-21
+
+### Added
+- Secure first-run setup flow with explicit administrator credential configuration.
+
+### Changed
+- Improved integration credential handling with encrypted storage and safer environment configuration.
+- Hardened session authentication and browser security defaults.
+
+### Security
+- Removed unsafe default authentication behavior from the initial setup path.
+
 ## [0.9.5] - 2026-03-28
 
 ### Fixed

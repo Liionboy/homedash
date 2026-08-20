@@ -35,13 +35,11 @@ button:hover{opacity:.9}
 <script>
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const res = await fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:document.getElementById('username').value, password:document.getElementById('password').value})});
+  const res = await fetch('/api/login', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:document.getElementById('username').value, password:document.getElementById('password').value})});
   if (!res.ok) { document.getElementById('error').textContent = 'Invalid credentials'; return; }
   const data = await res.json();
-  localStorage.setItem('homedash_token', data.token);
   location.href = '/';
 });
-if (localStorage.getItem('homedash_token')) location.href = '/';
 </script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 # https://github.com/Liionboy/homedash
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
@@ -12,12 +13,14 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 import bcrypt
 import docker
 import httpx
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import FastAPI, HTTPException, Request, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -27,9 +30,74 @@ BASE_DIR = Path(__file__).parent
 DB_PATH = Path(os.environ.get("HOMEDASH_DB", str(BASE_DIR / "homedash.db")))
 SESSIONS = {}
 CHECK_INTERVAL = 30
+SESSION_TTL = int(os.environ.get("HOMEDASH_SESSION_HOURS", "24")) * 3600
+INITIAL_ADMIN_USER = os.environ.get("HOMEDASH_USER", "admin").strip() or "admin"
+INITIAL_ADMIN_PASS = os.environ.get("HOMEDASH_PASS", "").strip()
+HOMEDASH_SECRET = os.environ.get("HOMEDASH_SECRET", "").strip()
+HOMEDASH_SECURE_COOKIES = os.environ.get("HOMEDASH_SECURE_COOKIES", "false").lower() in {"1", "true", "yes", "on"}
+HOMEDASH_TLS_VERIFY = os.environ.get("HOMEDASH_TLS_VERIFY", "true").lower() not in {"0", "false", "no", "off"}
+HOMEDASH_CA_BUNDLE = os.environ.get("HOMEDASH_CA_BUNDLE", "").strip() or None
+HTTP_VERIFY = HOMEDASH_CA_BUNDLE or HOMEDASH_TLS_VERIFY
+LOGIN_FAILURES = {}
+ENCRYPTED_CREDENTIALS_PREFIX = "enc:v1:"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("homedash")
+
+
+def _credentials_cipher() -> Fernet:
+    if len(HOMEDASH_SECRET) < 32:
+        raise RuntimeError("HOMEDASH_SECRET must be set and contain at least 32 characters")
+    key = base64.urlsafe_b64encode(hashlib.sha256(HOMEDASH_SECRET.encode()).digest())
+    return Fernet(key)
+
+
+def encrypt_credentials(credentials: dict) -> str:
+    payload = json.dumps(credentials, separators=(",", ":"), sort_keys=True).encode()
+    return ENCRYPTED_CREDENTIALS_PREFIX + _credentials_cipher().encrypt(payload).decode()
+
+
+def decrypt_credentials(value: str | None) -> dict:
+    if not value:
+        return {}
+    if value.startswith(ENCRYPTED_CREDENTIALS_PREFIX):
+        try:
+            payload = _credentials_cipher().decrypt(value[len(ENCRYPTED_CREDENTIALS_PREFIX):].encode())
+            result = json.loads(payload)
+        except (InvalidToken, ValueError, TypeError, json.JSONDecodeError) as exc:
+            logger.error("Unable to decrypt integration credentials: %s", exc.__class__.__name__)
+            return {}
+    else:
+        # Backward compatibility for existing installations. init_db() migrates
+        # these values to authenticated encryption before serving requests.
+        try:
+            result = json.loads(value)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return {}
+    return result if isinstance(result, dict) else {}
+
+
+def validate_http_url(value: str, field: str = "URL") -> str:
+    parsed = urlparse(value.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise HTTPException(400, f"{field} must be an http:// or https:// URL")
+    return value.strip().rstrip("/")
+
+
+def _login_rate_limit(client_ip: str) -> None:
+    now = time.time()
+    attempts = [timestamp for timestamp in LOGIN_FAILURES.get(client_ip, []) if timestamp > now - 900]
+    if len(attempts) >= 5:
+        raise HTTPException(429, "Too many login attempts. Try again later.")
+    LOGIN_FAILURES[client_ip] = attempts
+
+
+def _record_login_failure(client_ip: str) -> None:
+    LOGIN_FAILURES.setdefault(client_ip, []).append(time.time())
+
+
+def _clear_login_failures(client_ip: str) -> None:
+    LOGIN_FAILURES.pop(client_ip, None)
 
 # ─── Database ──────────────────────────────────────────────────────
 
@@ -41,6 +109,7 @@ def get_db():
     return db
 
 def init_db():
+    _credentials_cipher()
     db = get_db()
     db.executescript("""
         CREATE TABLE IF NOT EXISTS users (
@@ -110,12 +179,25 @@ def init_db():
             FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
         );
     """)
-    # Default admin
-    existing = db.execute("SELECT id FROM users WHERE username='admin'").fetchone()
+    # Bootstrap credentials are supplied by the environment, never hardcoded.
+    existing = db.execute("SELECT id FROM users WHERE username=?", (INITIAL_ADMIN_USER,)).fetchone()
     if not existing:
-        pw_hash = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode()
+        if len(INITIAL_ADMIN_PASS) < 12:
+            db.close()
+            raise RuntimeError("HOMEDASH_PASS must be set and contain at least 12 characters for the first administrator")
+        pw_hash = bcrypt.hashpw(INITIAL_ADMIN_PASS.encode(), bcrypt.gensalt()).decode()
         db.execute("INSERT INTO users(username,password_hash,role,created_at) VALUES(?,?,?,?)",
-                   ("admin", pw_hash, "admin", time.time()))
+                   (INITIAL_ADMIN_USER, pw_hash, "admin", time.time()))
+
+    # Migrate legacy plaintext integration credentials in place. The app can
+    # still read old databases, but it will not leave newly written secrets in
+    # plaintext.
+    for row in db.execute("SELECT id, credentials FROM integrations").fetchall():
+        raw = row["credentials"] if isinstance(row, sqlite3.Row) else row[1]
+        if raw and not raw.startswith(ENCRYPTED_CREDENTIALS_PREFIX):
+            credentials = decrypt_credentials(raw)
+            db.execute("UPDATE integrations SET credentials=? WHERE id=?",
+                       (encrypt_credentials(credentials), row["id"] if isinstance(row, sqlite3.Row) else row[0]))
     # Default categories
     existing_cats = db.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
     if existing_cats == 0:
@@ -246,7 +328,7 @@ async def discover_network(hosts: list[str] = None, ports: list[int] = None):
     async def probe(host, port):
         async with sem:
             try:
-                async with httpx.AsyncClient(verify=False, timeout=2, follow_redirects=True) as client:
+                async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=2, follow_redirects=True) as client:
                     proto = "https" if port in (443, 8443, 9443) else "http"
                     url = f"{proto}://{host}:{port}"
                     r = await client.get(url)
@@ -271,7 +353,7 @@ async def discover_network(hosts: list[str] = None, ports: list[int] = None):
 async def ping_service(url: str) -> dict:
     """Check if a service URL is reachable."""
     try:
-        async with httpx.AsyncClient(verify=False, timeout=5, follow_redirects=True) as client:
+        async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=5, follow_redirects=True) as client:
             start = time.time()
             r = await client.get(url)
             ms = round((time.time() - start) * 1000, 1)
@@ -964,7 +1046,7 @@ async def fetch_integration_data(itype: str, credentials: dict, base_url: str, c
 async def _fetch_homeassistant(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Get states count
         r = await client.get(f"{base_url}/api/states", headers=headers)
         if r.status_code != 200:
@@ -998,7 +1080,7 @@ async def _fetch_unifi(creds, base_url, config={}) -> dict:
     username = creds.get("username", "")
     password = creds.get("password", "")
     site = config.get("site") or creds.get("site") or "default"
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Try UniFi OS login first (Cloud Gateway, UDM, etc.)
         login = await client.post(f"{base_url}/api/auth/login", json={"username": username, "password": password})
         if login.status_code != 200:
@@ -1052,7 +1134,7 @@ async def _fetch_plex(creds, base_url, config={}) -> dict:
     token = creds.get("token", "")
     base_url = base_url.rstrip("/")
     headers = {"X-Plex-Token": token, "Accept": "application/json"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/library/sections", headers=headers)
         if r.status_code != 200:
             return {"error": f"Plex API error: {r.status_code}"}
@@ -1095,7 +1177,7 @@ async def _fetch_plex(creds, base_url, config={}) -> dict:
 async def _fetch_grafana(creds, base_url, config={}) -> dict:
     api_key = creds.get("api_key", "")
     headers = {"Authorization": f"Bearer {api_key}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/health", headers=headers)
         health = r.json() if r.status_code == 200 else {}
 
@@ -1115,7 +1197,7 @@ async def _fetch_grafana(creds, base_url, config={}) -> dict:
 async def _fetch_portainer(creds, base_url, config={}) -> dict:
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Get endpoints
         re = await client.get(f"{base_url}/api/endpoints", headers=headers)
         endpoints = re.json() if re.status_code == 200 else []
@@ -1146,7 +1228,7 @@ async def _fetch_pihole(creds, base_url, config={}):
     if version >= 6:
         return await _fetch_pihole_v6(creds, base_url, config)
     # Pi-hole v5 — no session management needed
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/admin/api.php?summaryRaw")
         if r.status_code != 200:
             return {"error": f"Pi-hole API error: {r.status_code}"}
@@ -1181,7 +1263,7 @@ async def _fetch_pihole_v6(creds, base_url, config={}):
         # No credentials and no cached session — try without auth
         headers = {}
 
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Try with existing session first
         r = await client.get(f"{base_url}/api/stats/summary", headers=headers)
 
@@ -1215,7 +1297,7 @@ async def _fetch_sonarr_radarr(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Api-Key": api_key}
     is_series = "sonarr" in base_url.lower() or config.get("type") == "sonarr"
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         if is_series:
             r = await client.get(f"{base_url}/api/v3/series", headers=headers)
             items = r.json() if r.status_code == 200 else []
@@ -1248,7 +1330,7 @@ async def _fetch_sonarr_radarr(creds, base_url, config={}):
 async def _fetch_prowlarr(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Api-Key": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         ri = await client.get(f"{base_url}/api/v1/indexer", headers=headers)
         indexers = ri.json() if ri.status_code == 200 else []
         rh = await client.get(f"{base_url}/api/v1/indexerstatus", headers=headers)
@@ -1262,7 +1344,7 @@ async def _fetch_prowlarr(creds, base_url, config={}):
 async def _fetch_bazarr(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-API-KEY": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/series", headers=headers)
         series = r.json().get("data", []) if r.status_code == 200 else []
         rm = await client.get(f"{base_url}/api/movies", headers=headers)
@@ -1274,7 +1356,7 @@ async def _fetch_bazarr(creds, base_url, config={}):
         }
 
 async def _fetch_qbittorrent(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Login
         await client.post(f"{base_url}/api/v2/auth/login",
                           data={"username": creds.get("username", ""), "password": creds.get("password", "")},
@@ -1298,7 +1380,7 @@ async def _fetch_qbittorrent(creds, base_url, config={}):
         }
 
 async def _fetch_transmission(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True,
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True,
                                  auth=(creds.get("username", ""), creds.get("password", ""))) as client:
         r = await client.post(f"{base_url}/transmission/rpc",
                               json={"method": "session-stats"},
@@ -1319,7 +1401,7 @@ async def _fetch_transmission(creds, base_url, config={}):
         }
 
 async def _fetch_deluge(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.post(f"{base_url}/json", json={"method": "auth.login", "params": [creds.get("password", "")], "id": 1})
         if r.status_code == 200 and r.json().get("result"):
             r2 = await client.post(f"{base_url}/json", json={"method": "web.update_ui", "params": [["state", "download_payload_rate", "upload_payload_rate", "num_connections"], {}], "id": 2})
@@ -1336,7 +1418,7 @@ async def _fetch_deluge(creds, base_url, config={}):
 async def _fetch_jellyfin(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"Authorization": f'MediaBrowser Token="{api_key}", Client="Homedash", Device="Homedash", DeviceId="homedash", Version="1.0.0"'}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         rs = await client.get(f"{base_url}/System/Info", headers=headers)
         info = rs.json() if rs.status_code == 200 else {}
         ru = await client.get(f"{base_url}/Users", headers=headers)
@@ -1367,7 +1449,7 @@ async def _fetch_proxmox(creds, base_url, config={}):
     password = creds.get("password", "")
     base_url = base_url.rstrip("/")
 
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         headers = {}
 
         if api_token and "=" in api_token:
@@ -1431,7 +1513,7 @@ async def _fetch_tailscale(creds, base_url, config={}):
     token = creds.get("token", "")
     tailnet = creds.get("tailnet", config.get("tailnet", ""))
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"https://api.tailscale.com/api/v2/tailnet/{tailnet}/devices", headers=headers)
         if r.status_code != 200:
             return {"error": f"Tailscale API error: {r.status_code}"}
@@ -1445,7 +1527,7 @@ async def _fetch_tailscale(creds, base_url, config={}):
         }
 
 async def _fetch_uptimekuma(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/summary")
         if r.status_code != 200:
             return {"error": f"Uptime Kuma API error: {r.status_code}"}
@@ -1470,7 +1552,7 @@ async def _fetch_nextcloud(creds, base_url, config={}):
     import base64
     auth = base64.b64encode(f"{creds.get('username', '')}:{creds.get('password', '')}".encode()).decode()
     headers = {"Authorization": f"Basic {auth}", "OCS-APIRequest": "true"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/ocs/v2.php/cloud/users/{creds.get('username', '')}?format=json", headers=headers)
         if r.status_code == 200:
             userdata = r.json().get("ocs", {}).get("data", {})
@@ -1491,7 +1573,7 @@ async def _fetch_nextcloud(creds, base_url, config={}):
         }
 
 async def _fetch_adguard(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         auth = (creds.get("username", ""), creds.get("password", "")) if creds.get("username") else None
         rs = await client.get(f"{base_url}/control/status", auth=auth)
         status = rs.json() if rs.status_code == 200 else {}
@@ -1509,7 +1591,7 @@ async def _fetch_adguard(creds, base_url, config={}):
 
 async def _fetch_sabnzbd(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/sabnzbd/api?mode=queue&output=json&apikey={api_key}")
         queue = r.json().get("queue", {}) if r.status_code == 200 else {}
         rh = await client.get(f"{base_url}/sabnzbd/api?mode=history&output=json&limit=0&apikey={api_key}")
@@ -1527,7 +1609,7 @@ async def _fetch_nzbget(creds, base_url, config={}):
     import base64
     auth = base64.b64encode(f"{creds.get('username', '')}:{creds.get('password', '')}".encode()).decode()
     headers = {"Authorization": f"Basic {auth}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/jsonrpc/status", headers=headers)
         status = r.json().get("result", {}) if r.status_code == 200 else {}
         return {
@@ -1541,7 +1623,7 @@ async def _fetch_nzbget(creds, base_url, config={}):
 async def _fetch_gitea(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"token {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         ru = await client.get(f"{base_url}/api/v1/user", headers=headers)
         user = ru.json() if ru.status_code == 200 else {}
         rr = await client.get(f"{base_url}/api/v1/repos/search?limit=1", headers=headers)
@@ -1558,7 +1640,7 @@ async def _fetch_gitea(creds, base_url, config={}):
 async def _fetch_gitlab(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"PRIVATE-TOKEN": token}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         ru = await client.get(f"{base_url}/api/v4/user", headers=headers)
         user = ru.json() if ru.status_code == 200 else {}
         rp = await client.get(f"{base_url}/api/v4/projects?per_page=1&statistics=true", headers=headers)
@@ -1572,7 +1654,7 @@ async def _fetch_gitlab(creds, base_url, config={}):
 async def _fetch_immich(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"x-api-key": token}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Try v2.x endpoints first, fall back to legacy
         rs = await client.get(f"{base_url}/api/server/statistics", headers=headers)
         if rs.status_code != 200:
@@ -1593,7 +1675,7 @@ async def _fetch_immich(creds, base_url, config={}):
 async def _fetch_paperless(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Token {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         rd = await client.get(f"{base_url}/api/documents/?page_size=1", headers=headers)
         doc_count = rd.json().get("count", 0) if rd.status_code == 200 else 0
         rc = await client.get(f"{base_url}/api/correspondents/?page_size=1", headers=headers)
@@ -1610,7 +1692,7 @@ async def _fetch_freshrss(creds, base_url, config={}):
     import base64
     auth = base64.b64encode(f"{creds.get('username', '')}:{creds.get('api_key', '')}".encode()).decode()
     headers = {"Authorization": f"Basic {auth}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/greader.php/reader/api/0/subscription/list?output=json", headers=headers)
         subs = r.json().get("subscriptions", []) if r.status_code == 200 else []
         ru = await client.get(f"{base_url}/api/greader.php/reader/api/0/unread-count?output=json", headers=headers)
@@ -1624,7 +1706,7 @@ async def _fetch_freshrss(creds, base_url, config={}):
         }
 
 async def _fetch_synology(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Login
         lr = await client.get(f"{base_url}/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=login&account={creds.get('username', '')}&passwd={creds.get('password', '')}&session=FileStation&format=cookie")
         if lr.status_code == 200 and lr.json().get("success"):
@@ -1645,7 +1727,7 @@ async def _fetch_synology(creds, base_url, config={}):
         return {"error": "Synology login failed"}
 
 async def _fetch_prometheus(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         # Try PromQL API
         r = await client.get(f"{base_url}/api/v1/query?query=up")
         if r.status_code == 200:
@@ -1663,7 +1745,7 @@ async def _fetch_prometheus(creds, base_url, config={}):
 async def _fetch_authelia(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/state", headers=headers)
         if r.status_code == 200:
             data = r.json()
@@ -1678,7 +1760,7 @@ async def _fetch_authelia(creds, base_url, config={}):
 
 async def _fetch_vaultwarden(creds, base_url, config={}):
     admin_token = creds.get("admin_token", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/admin/diagnostics", headers={"Authorization": f"Bearer {admin_token}"})
         if r.status_code == 200:
             data = r.json()
@@ -1693,7 +1775,7 @@ async def _fetch_vaultwarden(creds, base_url, config={}):
 async def _fetch_syncthing(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-API-Key": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/rest/system/status", headers=headers)
         if r.status_code == 200:
             data = r.json()
@@ -1710,7 +1792,7 @@ async def _fetch_syncthing(creds, base_url, config={}):
 
 async def _fetch_tautulli(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v2?apikey={api_key}&cmd=get_activity")
         if r.status_code == 200:
             data = r.json().get("response", {}).get("data", {})
@@ -1729,7 +1811,7 @@ async def _fetch_tautulli(creds, base_url, config={}):
 async def _fetch_overseerr(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Api-Key": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/status", headers=headers)
         if r.status_code == 200:
             rr = await client.get(f"{base_url}/api/v1/request?take=0", headers=headers)
@@ -1744,7 +1826,7 @@ async def _fetch_overseerr(creds, base_url, config={}):
 
 async def _fetch_gotify(creds, base_url, config={}):
     token = creds.get("token", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/message?token={token}")
         if r.status_code == 200:
             msgs = r.json().get("messages", [])
@@ -1758,7 +1840,7 @@ async def _fetch_gotify(creds, base_url, config={}):
 async def _fetch_netdata(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"X-Auth-Token": token} if token else {}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/info", headers=headers)
         if r.status_code == 200:
             info = r.json()
@@ -1779,7 +1861,7 @@ async def _fetch_netdata(creds, base_url, config={}):
         return {"error": f"Netdata API error: {r.status_code}"}
 
 async def _fetch_traefik(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/overview")
         if r.status_code == 200:
             data = r.json()
@@ -1793,7 +1875,7 @@ async def _fetch_traefik(creds, base_url, config={}):
 async def _fetch_navidrome(creds, base_url, config={}):
     username = creds.get("username", "")
     password = creds.get("password", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/rest/getMusicFolders.view", params={
             "u": username, "p": password, "v": "1.16.1", "c": "homedash", "f": "json"
         })
@@ -1815,7 +1897,7 @@ async def _fetch_navidrome(creds, base_url, config={}):
 async def _fetch_audiobookshelf(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/libraries", headers=headers)
         if r.status_code == 200:
             libs = r.json().get("libraries", [])
@@ -1830,7 +1912,7 @@ async def _fetch_audiobookshelf(creds, base_url, config={}):
 async def _fetch_mealie(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/groups/self", headers=headers)
         if r.status_code == 200:
             data = r.json()
@@ -1849,7 +1931,7 @@ async def _fetch_mealie(creds, base_url, config={}):
 async def _fetch_node_red(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/flows", headers=headers)
         if r.status_code == 200:
             flows = r.json()
@@ -1864,7 +1946,7 @@ async def _fetch_node_red(creds, base_url, config={}):
         return {"error": f"Node-RED API error: {r.status_code}"}
 
 async def _fetch_duplicati(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/serverstate")
         if r.status_code == 200:
             data = r.json()
@@ -1879,7 +1961,7 @@ async def _fetch_duplicati(creds, base_url, config={}):
 async def _fetch_kavita(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/library/libraries", headers=headers)
         if r.status_code == 200:
             libs = r.json()
@@ -1892,7 +1974,7 @@ async def _fetch_kavita(creds, base_url, config={}):
 async def _fetch_readarr(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Api-Key": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/author", headers=headers)
         authors = r.json() if r.status_code == 200 else []
         rb = await client.get(f"{base_url}/api/v1/book", headers=headers)
@@ -1906,7 +1988,7 @@ async def _fetch_readarr(creds, base_url, config={}):
 async def _fetch_homebridge(creds, base_url, config={}):
     username = creds.get("username", "")
     password = creds.get("password", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/auth/check")
         if r.status_code == 200:
             # Try accessories
@@ -1920,7 +2002,7 @@ async def _fetch_homebridge(creds, base_url, config={}):
 async def _fetch_octoprint(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Api-Key": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/version", headers=headers)
         if r.status_code == 200:
             ver = r.json()
@@ -1938,7 +2020,7 @@ async def _fetch_octoprint(creds, base_url, config={}):
 async def _fetch_jellyseerr(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Api-Key": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/status", headers=headers)
         if r.status_code == 200:
             rr = await client.get(f"{base_url}/api/v1/request?take=0", headers=headers)
@@ -1952,7 +2034,7 @@ async def _fetch_jellyseerr(creds, base_url, config={}):
 async def _fetch_miniflux(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Auth-Token": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/v1/feeds/counters", headers=headers)
         if r.status_code == 200:
             data = r.json()
@@ -1965,7 +2047,7 @@ async def _fetch_miniflux(creds, base_url, config={}):
         return {"error": f"Miniflux API error: {r.status_code}"}
 
 async def _fetch_stirling_pdf(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/info/status")
         if r.status_code == 200:
             return {"status": "operational", **r.json()}
@@ -1976,7 +2058,7 @@ async def _fetch_stirling_pdf(creds, base_url, config={}):
 async def _fetch_watchtower(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/v1/update", headers=headers)
         if r.status_code == 200:
             return {"last_scan": r.text[:50]}
@@ -1989,7 +2071,7 @@ async def _fetch_watchtower(creds, base_url, config={}):
 async def _fetch_npm(creds, base_url, config={}):
     username = creds.get("username", "")
     password = creds.get("password", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         login = await client.post(f"{base_url}/api/tokens", json={"identity": username, "secret": password})
         if login.status_code != 200:
             return {"error": f"NPM login failed: {login.status_code}"}
@@ -2012,7 +2094,7 @@ async def _fetch_opnsense(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     api_secret = creds.get("api_secret", "")
     auth = httpx.BasicAuth(api_key, api_secret)
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True, auth=auth) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True, auth=auth) as client:
         r = await client.get(f"{base_url}/api/diagnostics/firewall/stats")
         if r.status_code == 200:
             data = r.json()
@@ -2022,7 +2104,7 @@ async def _fetch_opnsense(creds, base_url, config={}):
 async def _fetch_pfsense(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     api_secret = creds.get("api_secret", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/status", headers={"Authorization": f"Bearer {api_key}.{api_secret}"})
         if r.status_code == 200:
             data = r.json().get("data", {})
@@ -2031,7 +2113,7 @@ async def _fetch_pfsense(creds, base_url, config={}):
 
 async def _fetch_unraid(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/info", headers={"x-api-key": api_key})
         if r.status_code == 200:
             data = r.json()
@@ -2048,7 +2130,7 @@ async def _fetch_unraid(creds, base_url, config={}):
         return {"error": f"Unraid API error: {r.status_code}"}
 
 async def _fetch_frigate(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/stats")
         if r.status_code == 200:
             data = r.json()
@@ -2066,14 +2148,14 @@ async def _fetch_wireguard(creds, base_url, config={}):
     return {"status": "WireGuard VPN"}
 
 async def _fetch_code_server(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/")
         return {"status": "running" if r.status_code == 200 else "offline"}
 
 async def _fetch_guacamole(creds, base_url, config={}):
     username = creds.get("username", "")
     password = creds.get("password", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.post(f"{base_url}/api/tokens", data={"username": username, "password": password})
         if r.status_code == 200:
             token = r.json().get("authToken", "")
@@ -2085,7 +2167,7 @@ async def _fetch_guacamole(creds, base_url, config={}):
 async def _fetch_truenas(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"Authorization": f"Bearer {api_key}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v2.0/system/info", headers=headers)
         if r.status_code == 200:
             data = r.json()
@@ -2097,7 +2179,7 @@ async def _fetch_truenas(creds, base_url, config={}):
 async def _fetch_omada(creds, base_url, config={}):
     username = creds.get("username", "")
     password = creds.get("password", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         login = await client.post(f"{base_url}/api/v2/login", json={"username": username, "password": password})
         if login.status_code == 200:
             token = login.json().get("result", {}).get("token", "")
@@ -2110,7 +2192,7 @@ async def _fetch_omada(creds, base_url, config={}):
         return {"error": f"Omada login failed: {login.status_code}"}
 
 async def _fetch_caddy(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/config/")
         if r.status_code == 200:
             config_data = r.json()
@@ -2122,14 +2204,14 @@ async def _fetch_caddy(creds, base_url, config={}):
 async def _fetch_cockpit(creds, base_url, config={}):
     username = creds.get("username", "")
     password = creds.get("password", "")
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/system", auth=httpx.BasicAuth(username, password))
         return {"status": "running" if r.status_code == 200 else "offline"}
 
 async def _fetch_changedetection(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     params = {"api_key": api_key} if api_key else {}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v1/watch", params=params)
         if r.status_code == 200:
             watches = r.json().get("watches", [])
@@ -2139,7 +2221,7 @@ async def _fetch_changedetection(creds, base_url, config={}):
 async def _fetch_healthchecks(creds, base_url, config={}):
     api_key = creds.get("api_key", "")
     headers = {"X-Api-Key": api_key}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/v3/checks/", headers=headers)
         if r.status_code == 200:
             checks = r.json().get("checks", [])
@@ -2152,7 +2234,7 @@ async def _fetch_wallabag(creds, base_url, config={}):
 async def _fetch_linkding(creds, base_url, config={}):
     token = creds.get("token", "")
     headers = {"Authorization": f"Token {token}"}
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/bookmarks/", headers=headers, params={"limit": 1})
         if r.status_code == 200:
             return {"total": r.json().get("count", 0)}
@@ -2162,7 +2244,7 @@ async def _fetch_romm(creds, base_url, config={}):
     return {"status": "RomM - Retro game manager"}
 
 async def _fetch_it_tools(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/")
         return {"status": "online" if r.status_code == 200 else "offline"}
 
@@ -2170,7 +2252,7 @@ async def _fetch_homepage(creds, base_url, config={}):
     return {"status": "Homepage dashboard"}
 
 async def _fetch_nginx(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/nginx_status")
         if r.status_code == 200:
             return {"status": "active"}
@@ -2180,7 +2262,7 @@ async def _fetch_ddns_updater(creds, base_url, config={}):
     return {"status": "DDNS active"}
 
 async def _fetch_statping(creds, base_url, config={}):
-    async with httpx.AsyncClient(verify=False, timeout=10, follow_redirects=True) as client:
+    async with httpx.AsyncClient(verify=HTTP_VERIFY, timeout=10, follow_redirects=True) as client:
         r = await client.get(f"{base_url}/api/services")
         if r.status_code == 200:
             services = r.json()
@@ -2212,7 +2294,7 @@ async def run_monitor_loop():
                 # Fetch integration data
                 intg = db_int.execute("SELECT * FROM integrations WHERE service_id=? AND enabled=1", (svc["id"],)).fetchone()
                 if intg:
-                    creds = json.loads(intg["credentials"] or "{}")
+                    creds = decrypt_credentials(intg["credentials"])
                     cfg = json.loads(intg["config"] or "{}")
                     int_data = await fetch_integration_data(intg["type"], creds, svc["url"], cfg)
                     svc["integration"] = {"type": intg["type"], "data": int_data}
@@ -2281,7 +2363,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Homedash API",
     description="Self-hosted dashboard with auto-discovery, drag-and-drop, and live widgets.",
-    version="0.1.0",
+    version="0.10.0",
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -2299,15 +2381,32 @@ async def login_page():
 # ─── Auth API ──────────────────────────────────────────────────────
 
 @app.post("/api/login")
-async def api_login(body: LoginIn):
+async def api_login(request: Request, body: LoginIn):
+    client_ip = request.client.host if request.client else "unknown"
+    _login_rate_limit(client_ip)
     db = get_db()
     user = db.execute("SELECT * FROM users WHERE username=?", (body.username,)).fetchone()
     db.close()
     if not user or not bcrypt.checkpw(body.password.encode(), user["password_hash"].encode()):
+        _record_login_failure(client_ip)
         raise HTTPException(401, "Invalid credentials")
+    _clear_login_failures(client_ip)
     token = secrets.token_hex(32)
-    SESSIONS[token] = {"user_id": user["id"], "username": user["username"], "role": user["role"], "expires": time.time() + 86400}
-    return {"token": token, "username": user["username"], "role": user["role"]}
+    SESSIONS[token] = {"user_id": user["id"], "username": user["username"], "role": user["role"], "expires": time.time() + SESSION_TTL}
+    response = JSONResponse({"ok": True, "username": user["username"], "role": user["role"]})
+    response.set_cookie("homedash_token", token, max_age=SESSION_TTL, httponly=True,
+                       secure=HOMEDASH_SECURE_COOKIES, samesite="lax")
+    return response
+
+
+@app.post("/api/logout")
+async def api_logout(request: Request):
+    token = request.headers.get("x-session") or request.cookies.get("homedash_token")
+    if token:
+        SESSIONS.pop(token, None)
+    response = JSONResponse({"ok": True})
+    response.delete_cookie("homedash_token")
+    return response
 
 @app.get("/api/check-auth")
 async def check_auth(request: Request):
@@ -2326,7 +2425,7 @@ async def list_categories(request: Request):
 
 @app.post("/api/categories")
 async def create_category(request: Request, cat: CategoryIn):
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     cur = db.execute("INSERT INTO categories(name,icon) VALUES(?,?)", (cat.name, cat.icon))
     db.commit(); new_id = cur.lastrowid; db.close()
@@ -2334,7 +2433,7 @@ async def create_category(request: Request, cat: CategoryIn):
 
 @app.put("/api/categories/{cid}")
 async def update_category(request: Request, cid: int, cat: CategoryIn):
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     db.execute("UPDATE categories SET name=?, icon=? WHERE id=?", (cat.name, cat.icon, cid))
     db.commit(); db.close()
@@ -2342,7 +2441,7 @@ async def update_category(request: Request, cid: int, cat: CategoryIn):
 
 @app.delete("/api/categories/{cid}")
 async def delete_category(request: Request, cid: int):
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     db.execute("UPDATE services SET category_id=NULL WHERE category_id=?", (cid,))
     db.execute("DELETE FROM categories WHERE id=?", (cid,))
@@ -2375,7 +2474,10 @@ async def list_services(request: Request):
 
 @app.post("/api/services")
 async def create_service(request: Request, svc: ServiceIn):
-    is_authed(request)
+    require_admin(request)
+    svc.url = validate_http_url(svc.url, "Service URL")
+    if svc.ping_url:
+        svc.ping_url = validate_http_url(svc.ping_url, "Ping URL")
     now = time.time()
     db = get_db()
     cur = db.execute(
@@ -2386,7 +2488,10 @@ async def create_service(request: Request, svc: ServiceIn):
 
 @app.put("/api/services/{sid}")
 async def update_service(request: Request, sid: int, svc: ServiceIn):
-    is_authed(request)
+    require_admin(request)
+    svc.url = validate_http_url(svc.url, "Service URL")
+    if svc.ping_url:
+        svc.ping_url = validate_http_url(svc.ping_url, "Ping URL")
     db = get_db()
     db.execute(
         "UPDATE services SET name=?,url=?,icon=?,description=?,category_id=?,is_favorite=?,sort_order=?,ping_url=?,updated_at=? WHERE id=?",
@@ -2396,7 +2501,7 @@ async def update_service(request: Request, sid: int, svc: ServiceIn):
 
 @app.delete("/api/services/{sid}")
 async def delete_service(request: Request, sid: int):
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     db.execute("DELETE FROM services WHERE id=?", (sid,))
     db.commit(); db.close()
@@ -2405,7 +2510,7 @@ async def delete_service(request: Request, sid: int):
 @app.put("/api/services/reorder")
 async def reorder_services(request: Request):
     """Update sort order for multiple services."""
-    is_authed(request)
+    require_admin(request)
     body = await request.json()
     db = get_db()
     for item in body.get("order", []):
@@ -2431,7 +2536,7 @@ async def list_widgets(request: Request):
 
 @app.post("/api/widgets")
 async def create_widget(request: Request, widget: WidgetIn):
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     cur = db.execute("INSERT INTO widgets(type,config,sort_order,enabled,created_at) VALUES(?,?,?,?,?)",
                      (widget.type, json.dumps(widget.config), widget.sort_order, int(widget.enabled), time.time()))
@@ -2440,7 +2545,7 @@ async def create_widget(request: Request, widget: WidgetIn):
 
 @app.put("/api/widgets/{wid}")
 async def update_widget(request: Request, wid: int, widget: WidgetIn):
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     db.execute("UPDATE widgets SET type=?,config=?,sort_order=?,enabled=? WHERE id=?",
                (widget.type, json.dumps(widget.config), widget.sort_order, int(widget.enabled), wid))
@@ -2449,7 +2554,7 @@ async def update_widget(request: Request, wid: int, widget: WidgetIn):
 
 @app.delete("/api/widgets/{wid}")
 async def delete_widget(request: Request, wid: int):
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     db.execute("DELETE FROM widget_cache WHERE widget_id=?", (wid,))
     db.execute("DELETE FROM widgets WHERE id=?", (wid,))
@@ -2459,7 +2564,7 @@ async def delete_widget(request: Request, wid: int):
 @app.get("/api/widgets/reload")
 async def reload_widgets(request: Request):
     """Force-reload all widget data."""
-    is_authed(request)
+    require_admin(request)
     await refresh_widgets()
     return {"ok": True}
 
@@ -2647,21 +2752,25 @@ async def discover_docker_api(request: Request):
 
 @app.post("/api/discover/network")
 async def discover_network_api(request: Request, body: DiscoverIn):
-    is_authed(request)
+    require_admin(request)
     results = await discover_network(body.hosts or None, body.ports or None)
     return results
 
 @app.post("/api/discover/add")
 async def add_discovered(request: Request):
     """Add a discovered service to the dashboard."""
-    is_authed(request)
+    require_admin(request)
     body = await request.json()
+    service_url = validate_http_url(body.get("url", ""), "Discovered service URL")
+    ping_url = body.get("ping_url")
+    if ping_url:
+        ping_url = validate_http_url(ping_url, "Discovered ping URL")
     now = time.time()
     db = get_db()
     db.execute(
         "INSERT INTO services(name,url,icon,description,category_id,ping_url,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
-        (body.get("name", "Unknown"), body.get("url", ""), body.get("icon", "🔗"),
-         body.get("description", ""), body.get("category_id"), body.get("ping_url"), now, now))
+        (body.get("name", "Unknown"), service_url, body.get("icon", "🔗"),
+         body.get("description", ""), body.get("category_id"), ping_url, now, now))
     db.commit(); db.close()
     return {"ok": True}
 
@@ -2677,7 +2786,7 @@ async def get_status(request: Request):
 @app.get("/api/ping")
 async def ping_url(request: Request, url: str):
     is_authed(request)
-    return await ping_service(url)
+    return await ping_service(validate_http_url(url, "Ping URL"))
 
 # ─── Integrations API ──────────────────────────────────────────────
 
@@ -2696,7 +2805,7 @@ async def list_integrations(request: Request):
     db.close()
     # Mask credentials
     for row in rows:
-        creds = json.loads(row.get("credentials") or "{}")
+        creds = decrypt_credentials(row.get("credentials"))
         masked = {}
         for k, v in creds.items():
             if v and len(str(v)) > 4:
@@ -2717,7 +2826,7 @@ async def get_integration(request: Request, service_id: int):
     if not row:
         return None
     result = dict(row)
-    creds = json.loads(result.get("credentials") or "{}")
+    creds = decrypt_credentials(result.get("credentials"))
     masked = {}
     for k, v in creds.items():
         if v and len(str(v)) > 4:
@@ -2739,7 +2848,7 @@ class IntegrationIn(BaseModel):
 @app.post("/api/integrations")
 async def create_integration(request: Request, intg: IntegrationIn):
     """Create or update integration for a service."""
-    is_authed(request)
+    require_admin(request)
     now = time.time()
     db = get_db()
     # Check if exists
@@ -2747,18 +2856,18 @@ async def create_integration(request: Request, intg: IntegrationIn):
     if existing:
         db.execute(
             "UPDATE integrations SET type=?, auth_type=?, credentials=?, config=?, enabled=?, updated_at=? WHERE service_id=?",
-            (intg.type, intg.auth_type, json.dumps(intg.credentials), json.dumps(intg.config), int(intg.enabled), now, intg.service_id))
+            (intg.type, intg.auth_type, encrypt_credentials(intg.credentials), json.dumps(intg.config), int(intg.enabled), now, intg.service_id))
     else:
         db.execute(
             "INSERT INTO integrations(service_id,type,auth_type,credentials,config,enabled,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
-            (intg.service_id, intg.type, intg.auth_type, json.dumps(intg.credentials), json.dumps(intg.config), int(intg.enabled), now, now))
+            (intg.service_id, intg.type, intg.auth_type, encrypt_credentials(intg.credentials), json.dumps(intg.config), int(intg.enabled), now, now))
     db.commit(); db.close()
     return {"ok": True}
 
 @app.delete("/api/integrations/{service_id}")
 async def delete_integration(request: Request, service_id: int):
     """Remove integration for a service."""
-    is_authed(request)
+    require_admin(request)
     db = get_db()
     db.execute("DELETE FROM integrations WHERE service_id=?", (service_id,))
     db.commit(); db.close()
@@ -2774,7 +2883,7 @@ async def refresh_integration(request: Request, service_id: int):
     db.close()
     if not intg or not svc:
         raise HTTPException(404, "Integration or service not found")
-    creds = json.loads(intg["credentials"] or "{}")
+    creds = decrypt_credentials(intg["credentials"])
     cfg = json.loads(intg["config"] or "{}")
     data = await fetch_integration_data(intg["type"], creds, svc["url"], cfg)
     # Update cache
@@ -2788,7 +2897,7 @@ async def refresh_integration(request: Request, service_id: int):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "timestamp": datetime.now().isoformat(), "version": "0.1.0"}
+    return {"status": "ok", "timestamp": datetime.now().isoformat(), "version": "0.10.0"}
 
 # ─── WebSocket ─────────────────────────────────────────────────────
 
@@ -2797,7 +2906,7 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     try:
         msg = await asyncio.wait_for(ws.receive_json(), timeout=5)
-        token = msg.get("token")
+        token = msg.get("token") or ws.cookies.get("homedash_token")
         if not token or token not in SESSIONS or SESSIONS[token]["expires"] < time.time():
             await ws.send_json({"type": "auth_error"})
             await ws.close()

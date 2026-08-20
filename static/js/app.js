@@ -1,7 +1,10 @@
 // ─── Homedash — Frontend v2 ───────────────────────────────────────
 
 const API = '';
-let token = localStorage.getItem('homedash_token') || '';
+// Authentication is held in the HttpOnly homedash_token cookie. The
+// x-session header remains supported by the backend for API clients, but the
+// browser no longer stores a bearer token in localStorage.
+let token = '';
 let servicesCache = [];
 let categoriesCache = [];
 let widgetsCache = [];
@@ -28,13 +31,14 @@ function esc(s) {
 }
 
 function getHeaders() {
-  return { 'x-session': token, 'Content-Type': 'application/json' };
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['x-session'] = token;
+  return headers;
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch(API + path, { headers: getHeaders(), ...opts });
+  const res = await fetch(API + path, { credentials: 'same-origin', headers: getHeaders(), ...opts });
   if (res.status === 401) {
-    localStorage.removeItem('homedash_token');
     location.href = '/login';
     return null;
   }
@@ -44,7 +48,6 @@ async function api(path, opts = {}) {
 // ─── Init ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-  if (!token) { location.href = '/login'; return; }
   const auth = await api('/api/check-auth');
   if (!auth || !auth.ok) { location.href = '/login'; return; }
 
@@ -1340,8 +1343,8 @@ renderDashboard = function () {
 // ─── Logout ───────────────────────────────────────────────────────
 
 function logout() {
-  localStorage.removeItem('homedash_token');
-  location.href = '/login';
+  fetch('/api/logout', { method: 'POST', credentials: 'same-origin' })
+    .finally(() => { token = ''; location.href = '/login'; });
 }
 
 // Prevent link click during drag

@@ -44,13 +44,22 @@ cp .env.example .env
 python server.py
 ```
 
-### Default Credentials
+### Initial credentials
 
-| Username | Password |
-|----------|----------|
-| admin    | admin    |
+Set `HOMEDASH_USER` and `HOMEDASH_PASS` in `.env` before the first start. The
+password must contain at least 12 characters; there is no hardcoded default.
 
-> ⚠️ **Change the default password after first login!**
+Generate the application encryption secret with:
+
+```bash
+openssl rand -hex 32
+```
+
+Keep `HOMEDASH_SECRET` unchanged. It encrypts integration credentials in the
+SQLite database; losing it means the stored API tokens cannot be recovered.
+
+The browser session uses an HttpOnly cookie. Set `HOMEDASH_SECURE_COOKIES=true`
+when Homedash is served over HTTPS.
 
 ## 📊 Supported Integrations (75+)
 
@@ -85,7 +94,7 @@ Each integration connects to a service and shows live data on the dashboard card
 ### 🖥️ Infrastructure
 | Service | Auth | Data Shown |
 |---------|------|------------|
-| **Proxmox** | Token/Password | Nodes, VMs, LXC containers |
+| **Proxmox** | API Token | Nodes, VMs, LXC containers |
 | **Portainer** | Bearer Token | Endpoints, Containers |
 | **Unraid** | API Key | Array status, Docker, VMs |
 | **TrueNAS** | API Key | Version, Pools |
@@ -196,7 +205,8 @@ HOMEDASH_PORT=9876
 
 # Authentication
 HOMEDASH_USER=admin
-HOMEDASH_PASS=your_secure_password
+HOMEDASH_PASS=your_secure_password_at_least_12_chars
+HOMEDASH_SECRET=your_32_byte_random_secret
 
 # Database (Docker)
 HOMEDASH_DB=/app/data/homedash.db
@@ -282,14 +292,17 @@ services:
       - "9876:9876"
     volumes:
       - homedash-data:/app/data
-    environment:
-      - HOMEDASH_PORT=9876
-      - HOMEDASH_USER=admin
-      - HOMEDASH_PASS=admin
+    env_file:
+      - .env
 
 volumes:
   homedash-data:
 ```
+
+Docker auto-discovery needs access to the Docker API. The compose file leaves
+the host socket disabled by default because it grants effectively host-admin
+access. Enable the commented socket mount only when that trade-off is
+acceptable, or use a restricted Docker socket proxy.
 
 ## 📊 Widgets
 
@@ -305,7 +318,9 @@ volumes:
 - Session-based authentication (24h expiry)
 - Admin/User role separation
 - Cookie + header token support
-- API tokens stored encrypted in SQLite
+- Integration credentials are encrypted with `HOMEDASH_SECRET` in SQLite
+- Proxmox API tokens are preferred over user passwords
+- TLS verification is enabled by default; use a CA bundle for self-signed services
 
 ## 🛠️ Development
 
@@ -328,7 +343,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| 0.9.1 | 2026-03-26 | Proxmox username+password auth |
+| 0.9.1 | 2026-03-26 | Proxmox API-token monitoring |
 | 0.9.0 | 2026-03-25 | 74 integrations (NPM, OPNsense, Unraid...) |
 | 0.8.0 | 2026-03-25 | 51 integrations (Netdata, Traefik...) |
 | 0.7.0 | 2026-03-25 | Docker support |
