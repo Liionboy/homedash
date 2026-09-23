@@ -733,6 +733,41 @@ body {
 
 .modal-body { padding: 20px; }
 
+/* ── Toast notifications ── */
+#toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--red);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  max-width: 320px;
+  opacity: 1;
+  transition: opacity .3s ease;
+  animation: toast-in .2s ease;
+}
+
+.toast.success { border-left-color: var(--green); }
+.toast.toast-out { opacity: 0; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
 .form-grid { display: grid; gap: 14px; }
 .form-row { display: flex; gap: 8px; align-items: center; }
 

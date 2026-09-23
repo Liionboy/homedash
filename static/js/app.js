@@ -501,11 +501,11 @@ function openIntegrationModal(serviceId) {
     // Pre-fill credential field names (we can't show actual values)
   }
 
-  document.getElementById('integration-modal-overlay').classList.add('active');
+  openModal('integration-modal-overlay');
 }
 
 function closeIntegrationModal() {
-  document.getElementById('integration-modal-overlay').classList.remove('active');
+  closeModal('integration-modal-overlay');
 }
 
 function showIntegrationFields() {
@@ -532,7 +532,7 @@ function showIntegrationFields() {
 async function saveIntegration() {
   const serviceId = parseInt(document.getElementById('int-service-id').value);
   const type = document.getElementById('int-type').value;
-  if (!type) return alert('Select an integration type.');
+  if (!type) return showToast('Select an integration type.');
 
   const intType = integrationTypesCache[type];
   const credentials = {};
@@ -549,7 +549,7 @@ async function saveIntegration() {
     method: 'POST',
     body: JSON.stringify({ service_id: serviceId, type, auth_type: authType, credentials, config, enabled: true })
   });
-  if (!res || !res.ok) return alert('Error saving integration.');
+  if (!res || !res.ok) return showToast('Error saving integration.');
   closeIntegrationModal();
   await loadIntegrations();
   renderDashboard();
@@ -611,11 +611,11 @@ function openDetailModal(serviceId) {
 
   html += '</div>';
   document.getElementById('detail-modal-body').innerHTML = html;
-  document.getElementById('detail-modal-overlay').classList.add('active');
+  openModal('detail-modal-overlay');
 }
 
 function closeDetailModal() {
-  document.getElementById('detail-modal-overlay').classList.remove('active');
+  closeModal('detail-modal-overlay');
 }
 
 function renderIntegrationDetails(type, data) {
@@ -967,12 +967,12 @@ function widgetLabel(t) {
 // ─── Widget Modal ─────────────────────────────────────────────────
 
 function openWidgetModal() {
-  document.getElementById('widget-modal-overlay').classList.add('active');
+  openModal('widget-modal-overlay');
   showWidgetConfig();
 }
 
 function closeWidgetModal() {
-  document.getElementById('widget-modal-overlay').classList.remove('active');
+  closeModal('widget-modal-overlay');
 }
 
 function showWidgetConfig() {
@@ -1016,7 +1016,7 @@ async function saveWidget() {
     method: 'POST',
     body: JSON.stringify({ type, config, enabled: true, sort_order: 0 })
   });
-  if (!res || !res.ok) return alert('Error.');
+  if (!res || !res.ok) return showToast('Error saving widget.');
   closeWidgetModal();
   await api('/api/widgets/reload');
   await loadWidgets();
@@ -1042,11 +1042,11 @@ function openServiceModal(data = null) {
   document.getElementById('svc-category').value = data ? (data.category_id || '') : '';
   document.getElementById('svc-ping').value = data ? (data.ping_url || '') : '';
   document.getElementById('svc-fav').checked = data ? !!data.is_favorite : false;
-  document.getElementById('service-modal-overlay').classList.add('active');
+  openModal('service-modal-overlay');
 }
 
 function closeServiceModal() {
-  document.getElementById('service-modal-overlay').classList.remove('active');
+  closeModal('service-modal-overlay');
 }
 
 function editService(s) {
@@ -1069,7 +1069,7 @@ document.getElementById('service-form').addEventListener('submit', async (e) => 
   const method = id ? 'PUT' : 'POST';
   const path = id ? '/api/services/' + id : '/api/services';
   const res = await api(path, { method, body: JSON.stringify(payload) });
-  if (!res || !res.ok) return alert('Error saving service.');
+  if (!res || !res.ok) return showToast('Error saving service.');
   closeServiceModal();
   await loadServices();
   renderDashboard();
@@ -1088,11 +1088,11 @@ function openSettingsModal() {
   renderSettingsServices();
   renderSettingsWidgets();
   renderSettingsCategories();
-  document.getElementById('settings-modal-overlay').classList.add('active');
+  openModal('settings-modal-overlay');
 }
 
 function closeSettingsModal() {
-  document.getElementById('settings-modal-overlay').classList.remove('active');
+  closeModal('settings-modal-overlay');
 }
 
 function renderSettingsServices() {
@@ -1163,11 +1163,11 @@ async function deleteCategory(id) {
 // ─── Discovery ────────────────────────────────────────────────────
 
 function openDiscoverModal() {
-  document.getElementById('discover-modal-overlay').classList.add('active');
+  openModal('discover-modal-overlay');
 }
 
 function closeDiscoverModal() {
-  document.getElementById('discover-modal-overlay').classList.remove('active');
+  closeModal('discover-modal-overlay');
 }
 
 async function runDockerDiscover() {
@@ -1356,20 +1356,63 @@ document.addEventListener('click', (e) => {
   }
 }, true);
 
+// ─── Modal stack + toasts ─────────────────────────────────────────
+
+const modalStack = [];
+let modalZTop = 100;
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!modalStack.includes(id)) modalStack.push(id);
+  modalZTop += 10;
+  el.style.zIndex = String(modalZTop);
+  el.classList.add('active');
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('active');
+  const i = modalStack.indexOf(id);
+  if (i !== -1) modalStack.splice(i, 1);
+}
+
+function closeTopModal() {
+  if (modalStack.length) closeModal(modalStack[modalStack.length - 1]);
+}
+
+function showToast(message, type = 'error') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const t = document.createElement('div');
+  t.className = 'toast' + (type === 'success' ? ' success' : '');
+  t.textContent = message;
+  container.appendChild(t);
+  setTimeout(() => {
+    t.classList.add('toast-out');
+    setTimeout(() => t.remove(), 300);
+  }, 3500);
+}
+
 // ─── Modal overlay close on background click ──────────────────────
 
 ['service-modal-overlay', 'widget-modal-overlay', 'discover-modal-overlay', 'settings-modal-overlay', 'integration-modal-overlay', 'detail-modal-overlay'].forEach(id => {
   document.getElementById(id)?.addEventListener('click', (e) => {
-    if (e.target.id === id) e.target.classList.remove('active');
+    if (e.target.id === id) closeModal(id);
   });
 });
 
 // ─── Keyboard Shortcuts ───────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
-  // Escape to close modals
+  // Escape to close the topmost modal
   if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+    closeTopModal();
   }
   // Ctrl+N to add service
   if (e.ctrlKey && e.key === 'n') {
